@@ -94,7 +94,7 @@ protected:
 
  std::size_t num_states_;             //number of the lowest-energy states to find
  std::vector<double> state_energies_; //quantum state energies
- double covergence_thresh_;           //tensor convergence threshold (for maxabs)
+ double convergence_thresh_;          //tensor convergence threshold (for maxabs)
 
  std::shared_ptr<exatn::TensorExpansion> functional_; //energy trace functional
  std::vector<std::tuple<std::string,                             //tensor name
