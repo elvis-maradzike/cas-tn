@@ -1,8 +1,8 @@
 /** Complete-Active-Space Tensor-Network (CAS-TN) Simulation: Main header
-REVISION: 2020/12/16
+REVISION: 2021/01/08
 
-Copyright (C) 2020-2020 Dmitry I. Lyakh (Liakh), Elvis Maradzike
-Copyright (C) 2020-2020 Oak Ridge National Laboratory (UT-Battelle)
+Copyright (C) 2020-2021 Dmitry I. Lyakh (Liakh)
+Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
 
 Rationale:
  <Describe what functionality is provided by this header>
@@ -40,11 +40,11 @@ public:
   convergence_thresh_(DEFAULT_CONVERGENCE_THRESH)
   {}
 
- /** Resets the wavefunction ansatz by copying the provided tensor network. **/
- void resetWaveFunctionAnsatz(const exatn::TensorNetwork & ansatz);
+ /** Resets the wavefunction ansatz with the provided tensor network. **/
+ void resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorNetwork> ansatz);
 
- /** Resets the wavefunction ansatz by copying the provided tensor network expansion. **/
- void resetWaveFunctionAnsatz(const exatn::TensorExpansion & ansatz);
+ /** Resets the wavefunction ansatz with the provided tensor network expansion. **/
+ void resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorExpansion> ansatz);
 
  /** Resets the wavefunction ansatz by constructing an appropriate tensor network. **/
  void resetWaveFunctionAnsatz(exatn::NetworkBuilder & ansatz_builder);
@@ -58,6 +58,9 @@ public:
                double convergence_thresh = DEFAULT_CONVERGENCE_THRESH); //in: tensor convergence threshold (for maxabs)
 
 protected:
+
+ /** Clears the simulation state. **/
+ void clear();
 
  /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
  void appendOrderingProjectors();
