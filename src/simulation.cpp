@@ -70,6 +70,8 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   constructEnergyDerivatives();
   initWavefunctionAnsatz();
   evaluateEnergyFunctional();
+  evaluateEnergyDerivatives();
+  updateWavefunctionAnsatzTensors();
   return true;
 }
 
@@ -80,12 +82,31 @@ void Simulation::appendOrderingProjectors(){
   bool isket = (*ket_ansatz_).isKet();
   std::cout << "isket?: " << isket << std::endl;
 
-   
+  // array of elements to initialize tensors that comprise the ordering projectors
+    std::vector<double> tmpData(total_orbitals_*total_orbitals_*total_orbitals_*total_orbitals_,0.0);
+  for ( unsigned int i = 0; i < total_orbitals_; i++){
+    for ( unsigned int j = 0; j < total_orbitals_; j++){
+      for ( unsigned int k = 0; k < total_orbitals_; k++){
+        for ( unsigned int l = 0; l < total_orbitals_; l++){
+          if ( i < j){
+          tmpData[i*total_orbitals_*total_orbitals_*total_orbitals_
+                 +j*total_orbitals_*total_orbitals_
+                 +k*total_orbitals_+l] = double((i==k)*(j==l));
+          }else{
+          tmpData[i*total_orbitals_*total_orbitals_*total_orbitals_
+                 +j*total_orbitals_*total_orbitals_
+                 +k*total_orbitals_+l] = 0.0;
+          }
+        }
+      }
+    }
+  }
+ 
   // create tensors for ordering projectors
   for ( unsigned int i = 0; i < num_particles_-1; i++){
     const bool created = exatn::createTensor("Q" + std::to_string(i) + std::to_string(i+1), exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
   
-    const bool initialized = exatn::initTensorRnd("Q" + std::to_string(i) + std::to_string(i+1)); assert(initialized);
+    const bool initialized = exatn::initTensorData("Q" + std::to_string(i) + std::to_string(i+1), tmpData); assert(initialized);
   }
   
     
@@ -183,8 +204,8 @@ void Simulation::constructEnergyFunctional(){
 }
 
 void Simulation::constructEnergyDerivatives(){
-   exatn::TensorExpansion tmp((*functional_),"A",true);
-   tmp.rename("DerivativeA");
+  // exatn::TensorExpansion tmp((*functional_),"A",true);
+  // tmp.rename("DerivativeA");
   // tmp.printIt();
 
   for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
@@ -199,12 +220,13 @@ void Simulation::constructEnergyDerivatives(){
       std::cout << iter->network_->getTensor(i)->getName() << std::endl; 
       const std::string TENSOR_NAME = iter->network_->getTensor(i)->getName();
       const exatn::TensorShape shape = (*exatn::getTensor(TENSOR_NAME)).getShape();
-      created = exatn::createTensor("Deriv_" + TENSOR_NAME,exatn::TensorElementType::REAL64,shape); assert(created);
-      auto volume = (*exatn::getTensor("Deriv_" + TENSOR_NAME)).getVolume();
+      created = exatn::createTensor("DerivTensor_" + TENSOR_NAME,exatn::TensorElementType::REAL64,shape); assert(created);
+      auto volume = (*exatn::getTensor("DerivTensor_" + TENSOR_NAME)).getVolume();
       std::cout << volume << std::endl;
       exatn::TensorExpansion tmpDerivExpansion((*functional_),TENSOR_NAME,true);
+      tmpDerivExpansion.rename("DerivExpansion_"+TENSOR_NAME);
       auto gradExpansion = std::make_shared<exatn::TensorExpansion>(tmpDerivExpansion);
-      auto grad = std::make_shared<exatn::Tensor>((*exatn::getTensor("Deriv_" + TENSOR_NAME)));
+      auto grad = std::make_shared<exatn::Tensor>((*exatn::getTensor("DerivTensor_" + TENSOR_NAME)));
       derivatives_.push_back(std::make_tuple(TENSOR_NAME,gradExpansion,grad));
     }
   }
@@ -225,13 +247,17 @@ void Simulation::initWavefunctionAnsatz(){
       std::cout << iter->network_->getTensor(i)->getName() << std::endl; 
       const std::string TENSOR_NAME = iter->network_->getTensor(i)->getName();
       initialized = exatn::initTensorRnd(TENSOR_NAME); assert(initialized);
+      // normalize tensor
+      double norm = 0.;
+      success = exatn::computeNorm2Sync(TENSOR_NAME, norm); assert(success);
+      success = exatn::scaleTensor(TENSOR_NAME, 4.0/norm); assert(success);
       success = exatn::printTensorSync(TENSOR_NAME); assert(success);
     }
   }
 }
 
 double Simulation::evaluateEnergyFunctional(){
-   double energy = 0.0;
+  double energy = 0.0;
   // create accumulator rensor for the closed tensor expansion
   bool created = false;
   created = exatn::createTensorSync("AC0",exatn::TensorElementType::REAL64, exatn::TensorShape{}); assert(created);
@@ -253,4 +279,46 @@ double Simulation::evaluateEnergyFunctional(){
   return energy;
 }
 
+void Simulation::evaluateEnergyDerivatives(){
+  for (unsigned int i = 0; i < derivatives_.size(); i++){
+    auto TENSOR_NAME = std::get<0>(derivatives_[i]);
+    const exatn::TensorShape SHAPE = (*exatn::getTensor(TENSOR_NAME)).getShape();
+  //  bool created = false;
+  //  created = exatn::createTensorSync("AC1_" + TENSOR_NAME, exatn::TensorElementType::REAL64, SHAPE); assert(created);
+    //auto accumulator1 = exatn::getTensor("AC1_" + TENSOR_NAME);
+    auto accumulator1 = exatn::getTensor("DerivTensor_" + TENSOR_NAME);
+    auto accumulator1Name = (*accumulator1).getName();
+    std::cout << accumulator1Name << std::endl;
+    bool evaluated = false;
+    auto derivExpansion = std::get<1>(derivatives_[i]);
+    auto derivExpansionName = (*derivExpansion).getName();
+    std::cout << derivExpansionName << std::endl;
+    evaluated = exatn::evaluateSync((*derivExpansion), accumulator1); assert(evaluated);
+  }
+}
+  
+void Simulation::updateWavefunctionAnsatzTensors(){
+  // get wavefunction ansatz tensors 
+  for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
+    iter->network_;
+    iter->coefficient_;
+    auto & network = *(iter->network_);
+    network.printIt();
+    // loop through network
+    bool initialized = false;
+    bool success = false;
+    for ( unsigned int i = 1; i < num_particles_+1; i++){ 
+      // gettensor; indices for tensors in MPS start from #1
+      std::cout << iter->network_->getTensor(i)->getName() << std::endl; 
+      const std::string TENSOR_NAME = iter->network_->getTensor(i)->getName();
+      double maxAbsInGrad = 0.;
+      success = exatn::computeMaxAbsSync("DerivTensor_" + TENSOR_NAME, maxAbsInGrad); assert(success);
+      std::cout << "Max Abs element in derivative w.r.t " << TENSOR_NAME << " is " << maxAbsInGrad << std::endl;
+    }
+  }
+  
+  // get derivatives 
+  
+
+}
 } //namspace castn
