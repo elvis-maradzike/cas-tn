@@ -1,5 +1,5 @@
 /** Complete-Active-Space Tensor-Network (CAS-TN) Simulation: Main header
-REVISION: 2021/01/08
+REVISION: 2021/01/29
 
 Copyright (C) 2020-2021 Dmitry I. Lyakh (Liakh)
 Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
@@ -61,6 +61,9 @@ protected:
 
  /** Clears the simulation state. **/
  void clear();
+
+ /** Mark optimizable tensors. **/
+ void markOptimizableTensors();
 
  /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
  void appendOrderingProjectors();
