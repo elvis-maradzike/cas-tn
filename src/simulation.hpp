@@ -104,7 +104,18 @@ protected:
                         std::shared_ptr<exatn::TensorExpansion>, //derivative tensor expansion
                         std::shared_ptr<exatn::Tensor>           //derivative tensor
                        >> derivatives_; //derivatives of the energy functional
+
+ struct Environment{
+ std::shared_ptr<exatn::Tensor> tensor;     //tensor being optimized
+ std::shared_ptr<exatn::Tensor> gradient;   //gradient w.r.t. the tensor
+ exatn::TensorExpansion gradient_expansion; //gradient tensor network expansion
+ };
+
+ std::vector<Environment> environments_;
+ double epsilon_;
+
 };
+
 
 } //namespace castn
 
