@@ -93,7 +93,8 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   constructEnergyFunctional();
   constructEnergyDerivatives();
   initWavefunctionAnsatz();
-  evaluateEnergyDerivatives();
+  evaluateEnergyFunctional();
+  // evaluateEnergyDerivatives();
   // updateWavefunctionAnsatzTensors();
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
   
