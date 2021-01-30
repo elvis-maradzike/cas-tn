@@ -1,5 +1,5 @@
 /** Complete-Active-Space Tensor-Network (CAS-TN) Simulation
-REVISION: 2021/01/29
+REVISION: 2021/01/08
 
 Copyright (C) 2020-2021 Dmitry I. Lyakh (Liakh), Elvis Maradzike
 Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
@@ -58,6 +58,12 @@ void Simulation::resetHamiltonian(const std::vector<std::shared_ptr<exatn::Tenso
  return;
 }
 
+void Simulation::markOptimizableTensors(){
+  for (auto component = ket_ansatz_->begin(); component != ket_ansatz_->end(); ++component){
+    component->network_->markOptimizableAllTensors();
+  }
+}
+
 bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
  
   // print out some optimization parameters 
@@ -68,6 +74,7 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   std::cout << "Convergence threshold: " << convergence_thresh_ << std::endl;
 
   // set up wavefunction and its optimization
+  markOptimizableTensors();
   appendOrderingProjectors();
   constructEnergyFunctional();
   constructEnergyDerivatives();
@@ -102,13 +109,11 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
     iter->coefficient_;
     auto & network = *(iter->network_);
     bool created = false;
-    //(iter->network_)->markOptimizableTensors([](const exatn::Tensor & tensor){return true;});
-    (iter->network_)->markOptimizableTensors([](const exatn::Tensor & tensor){return true;});
   }
 
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
   exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_, 0.01);
-  optimizer.resetLearningRate(0.01);
+  optimizer.resetLearningRate(0.6);
   bool converged = optimizer.optimize();
   bool success = exatn::sync(); assert(success);
   if(converged){
@@ -292,7 +297,7 @@ void Simulation::initWavefunctionAnsatz(){
       // scale tensors
       double norm = 0.;
       success = exatn::computeNorm2Sync(TENSOR_NAME, norm); assert(success);
-      success = exatn::scaleTensor(TENSOR_NAME, 1.0/norm); assert(success);
+     // success = exatn::scaleTensor(TENSOR_NAME, 1.0/norm); assert(success);
      // success = exatn::printTensorSync(TENSOR_NAME); assert(success);
     }
   }
