@@ -73,6 +73,20 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   std::cout << "Number of states: " << num_states_ << std::endl;
   std::cout << "Convergence threshold: " << convergence_thresh_ << std::endl;
 
+  // hamiltonian
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
+  auto h1 = std::make_shared<exatn::Tensor>("H1",exatn::TensorShape{total_orbitals_, total_orbitals_});
+  auto h2 = std::make_shared<exatn::Tensor>("H2",exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_});
+
+  auto created = exatn::createTensorSync(h1,TENS_ELEM_TYPE); assert(created);
+  created =      exatn::createTensorSync(h2,TENS_ELEM_TYPE); assert(created);
+  
+  auto initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
+  initialized =      exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
+
+  hamiltonian_.push_back(h2);
+  hamiltonian_.push_back(h1);
+
   // set up wavefunction and its optimization
   markOptimizableTensors();
   appendOrderingProjectors();
@@ -83,24 +97,22 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   // updateWavefunctionAnsatzTensors();
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
   
-  // hamiltonian tensors 
-  int hamTensorCounter = 0;
+  // two-body
   for ( unsigned int ketIndex1 = 0; ketIndex1 < num_particles_; ketIndex1++){
     for ( unsigned int ketIndex2 = ketIndex1+1; ketIndex2 < num_particles_; ketIndex2++){
       for ( unsigned int braIndex1 = 0; braIndex1 < num_particles_; braIndex1++){    
         for ( unsigned int braIndex2 = braIndex1+1; braIndex2 < num_particles_; braIndex2++){    
-          auto appended = ham->appendComponent(hamiltonian_[hamTensorCounter],{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
-        hamTensorCounter++;
+          auto appended = ham->appendComponent(hamiltonian_[0],{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
         }
       }
     }
   }  
 
+  // one-body
   for ( unsigned int ketIndex = 0; ketIndex < num_particles_; ketIndex++){
     for ( unsigned int braIndex = 0; braIndex < num_particles_; braIndex++){
-      auto appended = ham->appendComponent(hamiltonian_[hamTensorCounter],{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
+      auto appended = ham->appendComponent(hamiltonian_[1],{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
     std::cout << ketIndex * num_particles_+braIndex << std::endl;
-    hamTensorCounter++;
     }
   }
   
@@ -198,7 +210,7 @@ void Simulation::appendOrderingProjectors(){
   auto opket = exatn::makeSharedTensorExpansion(*ket_ansatz_,*operatorOrderingProjector);
   //opket.printIt();
   ket_ansatz_ = std::make_shared<exatn::TensorExpansion>(*opket);
-  ket_ansatz_->printIt();
+ // ket_ansatz_->printIt();
  
 }
 
@@ -210,13 +222,13 @@ void Simulation::constructEnergyFunctional(){
   bra_ansatz_->conjugate();
   bra_ansatz_->printIt();
 
+  /*
   for ( unsigned int ketIndex1 = 0; ketIndex1 < num_particles_; ketIndex1++){
     for ( unsigned int ketIndex2 = ketIndex1+1; ketIndex2 < num_particles_; ketIndex2++){
       for ( unsigned int braIndex1 = 0; braIndex1 < num_particles_; braIndex1++){    
         for ( unsigned int braIndex2 = braIndex1+1; braIndex2 < num_particles_; braIndex2++){    
           exatn::createTensor("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2), exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); 
          const bool initialized = exatn::initTensorFile("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2),"tei.txt"); assert(initialized);
-         hamiltonian_.push_back(exatn::getTensor("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2)));
         }
       }
     }
@@ -225,9 +237,10 @@ void Simulation::constructEnergyFunctional(){
     for ( unsigned int braIndex = 0; braIndex < num_particles_; braIndex++){
       const bool created = exatn::createTensor("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex), exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_});
       const bool initialized = exatn::initTensorFile("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex),"oei.txt"); assert(initialized);
-         hamiltonian_.push_back(exatn::getTensor("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex)));
     }
   }
+  */
+
   exatn::TensorOperator ham("Hamiltonian");
   auto appended = false;
   // hamiltonian tensors 
@@ -235,7 +248,8 @@ void Simulation::constructEnergyFunctional(){
     for ( unsigned int ketIndex2 = ketIndex1+1; ketIndex2 < num_particles_; ketIndex2++){
       for ( unsigned int braIndex1 = 0; braIndex1 < num_particles_; braIndex1++){    
         for ( unsigned int braIndex2 = braIndex1+1; braIndex2 < num_particles_; braIndex2++){    
-          appended = ham.appendComponent(exatn::getTensor("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2)),{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
+          //appended = ham.appendComponent(exatn::getTensor("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2)),{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
+          appended = ham.appendComponent(hamiltonian_[0],{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
         }
       }
     }
@@ -243,8 +257,8 @@ void Simulation::constructEnergyFunctional(){
 
   for ( unsigned int ketIndex = 0; ketIndex < num_particles_; ketIndex++){
     for ( unsigned int braIndex = 0; braIndex < num_particles_; braIndex++){
-      appended = ham.appendComponent(exatn::getTensor("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex)),{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
-    std::cout << ketIndex * num_particles_+braIndex << std::endl;
+      //appended = ham.appendComponent(exatn::getTensor("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex)),{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
+      appended = ham.appendComponent(hamiltonian_[1],{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
     }
   }
 
