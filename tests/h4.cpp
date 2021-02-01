@@ -1,8 +1,7 @@
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
-
-#include "/home/parallels/projects/my_cas-tn_branch/cas-tn/src/simulation.hpp"
+#include "../src/simulation.hpp"
 
 using namespace std::chrono;
 using namespace castn;
@@ -24,31 +23,37 @@ int main(int argc, char** argv){
 
   exatn::initialize();
   {
-
-  Simulation myObject(num_orbitals, num_particles,num_core_orbitals,
-                          total_orbitals, total_particles);
-  
   // declare tensor network
   auto a = std::make_shared<exatn::Tensor>("A", exatn::TensorShape{np,ni});
   auto b = std::make_shared<exatn::Tensor>("B", exatn::TensorShape{ni,nq,nj});
   auto c = std::make_shared<exatn::Tensor>("C", exatn::TensorShape{nj,nr,nk});
   auto d = std::make_shared<exatn::Tensor>("D", exatn::TensorShape{nk,ns});
   auto abcd = std::make_shared<exatn::Tensor>("ABCD", exatn::TensorShape{np,nq,nr,ns});
+  
+  auto network_abcd = exatn::makeSharedTensorNetwork(
+                 "NetworkABCD", //tensor network name
+                 "ABCD(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)",
+                 std::map<std::string,std::shared_ptr<exatn::Tensor>>{
+                  {"ABCD",abcd},
+                  {"A",a},
+                  {"B",b},
+                  {"C",c},
+                  {"D",d}
+                 }
+                );
 
-  auto abcd_ket = std::make_shared<exatn::TensorNetwork>(" 4-site MPS",
-                   "ABCD(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)",
-                   std::map<std::string,std::shared_ptr<exatn::Tensor>>{
-                    {"ABCD",abcd}, {"A",a}, {"B",b}, {"C",c}, {"D",d}});
-
-  created = createTensor(a, TENS_ELEM_TYPE); assert(created);
-  created = createTensor(b, TENS_ELEM_TYPE); assert(created);
-  created = createTensor(c, TENS_ELEM_TYPE); assert(created);
-  created = createTensor(d, TENS_ELEM_TYPE); assert(created);
-  created = createTensor(abcd, TENS_ELEM_TYPE); assert(created);
+  // create constituent tensors
+  created = exatn::createTensor(abcd, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(a, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d, TENS_ELEM_TYPE); assert(created);
 
   std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
 
-  myObject.resetWaveFunctionAnsatz(abcd_ket);
+  // declare object from Simulation class
+  Simulation myObject(num_orbitals, num_particles, num_core_orbitals, total_orbitals, total_particles);
+  myObject.resetWaveFunctionAnsatz(network_abcd);
   myObject.resetHamiltonian(hamiltonian);
   myObject.optimize(1,1e-5);
 
