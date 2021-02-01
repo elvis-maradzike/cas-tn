@@ -94,7 +94,7 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   constructEnergyDerivatives();
   initWavefunctionAnsatz();
   evaluateEnergyFunctional();
-  // evaluateEnergyDerivatives();
+  evaluateEnergyDerivatives();
   // updateWavefunctionAnsatzTensors();
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
   
@@ -125,8 +125,8 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   }
 
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
-  exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_, 0.01);
-  optimizer.resetLearningRate(0.6);
+  exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,1e-2);
+  optimizer.resetLearningRate(0.1);
   bool converged = optimizer.optimize();
   bool success = exatn::sync(); assert(success);
   if(converged){
@@ -134,7 +134,6 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   }else{
    std::cout << "Optimization failed!" << std::endl; assert(false);
   }
-  success = exatn::printTensor("Q01"); assert(success);
   
   return true;
 }
@@ -162,15 +161,11 @@ void Simulation::appendOrderingProjectors(){
     }
   }
  
-  // create tensors for ordering projectors
-  for ( unsigned int i = 0; i < num_particles_-1; i++){
-    const bool created = exatn::createTensor("Q" + std::to_string(i) + std::to_string(i+1), exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  //create tensors for ordering projectors
+  auto created = exatn::createTensor("Q", exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  auto initialized = exatn::initTensorData("Q", tmpData); assert(initialized);
   
-    const bool initialized = exatn::initTensorData("Q" + std::to_string(i) + std::to_string(i+1), tmpData); assert(initialized);
-  }
- 
-/* 
-  bool appended = false;
+  auto appended = false;
   unsigned int tensorCounter = 1+num_particles_;
   for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
     iter->network_;
@@ -178,40 +173,18 @@ void Simulation::appendOrderingProjectors(){
     auto & network = *(iter->network_);
     // applying layer 1
     for ( unsigned int i = 0; i < num_particles_-1; i=i+2){
-      appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q" + std::to_string(i) + std::to_string(i+1)),{i,i+1}); assert(appended);
+      appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q"),{i,i+1}); assert(appended);
       tensorCounter++;
     }
     // applying layer 2
     for ( unsigned int i = 1; i < num_particles_-1; i=i+2){
-      appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q" + std::to_string(i) + std::to_string(i+1)),{i,i+1}); assert(appended);
+      appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q"),{i,i+1}); assert(appended);
     //  network.printIt();
       tensorCounter++;
     }
   }
-*/
 
-  auto networkOrderingProjectors = exatn::makeSharedTensorNetwork("NOP");
-  unsigned int tensorCounter = 1;
-  for ( unsigned int i = 0; i < num_particles_-1; i=i+2){
-     bool appended = networkOrderingProjectors->appendTensor(tensorCounter, exatn::getTensor("Q" + std::to_string(i) + std::to_string(i+1)),{}); assert(appended);
-    tensorCounter++;
-  }
-  for ( unsigned int i = 1; i < num_particles_-1; i=i+2){
-    bool appended = networkOrderingProjectors->appendTensorGate(tensorCounter, exatn::getTensor("Q" + std::to_string(i) + std::to_string(i+1)),{2*i+1,2*i+4}); assert(appended);
-  //  network.printIt();
-    tensorCounter++;
-  }
-  networkOrderingProjectors->printIt();
-
-  // append this network to ordering operator
-  auto operatorOrderingProjector = exatn::makeSharedTensorOperator("OperatorOrderingProjector");
-  auto appended = operatorOrderingProjector->appendComponent(networkOrderingProjectors, {{0,0},{1,1},{2,4},{3,5}}, {{0,2},{1,3},{2,6},{3,7}}, {1.0,0.0}); assert(appended);
- 
-  operatorOrderingProjector->printIt(); 
-  auto opket = exatn::makeSharedTensorExpansion(*ket_ansatz_,*operatorOrderingProjector);
-  //opket.printIt();
-  ket_ansatz_ = std::make_shared<exatn::TensorExpansion>(*opket);
- // ket_ansatz_->printIt();
+  ket_ansatz_->printIt();
  
 }
 
@@ -223,25 +196,6 @@ void Simulation::constructEnergyFunctional(){
   bra_ansatz_->conjugate();
   bra_ansatz_->printIt();
 
-  /*
-  for ( unsigned int ketIndex1 = 0; ketIndex1 < num_particles_; ketIndex1++){
-    for ( unsigned int ketIndex2 = ketIndex1+1; ketIndex2 < num_particles_; ketIndex2++){
-      for ( unsigned int braIndex1 = 0; braIndex1 < num_particles_; braIndex1++){    
-        for ( unsigned int braIndex2 = braIndex1+1; braIndex2 < num_particles_; braIndex2++){    
-          exatn::createTensor("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2), exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); 
-         const bool initialized = exatn::initTensorFile("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2),"tei.txt"); assert(initialized);
-        }
-      }
-    }
-  }  
-  for ( unsigned int ketIndex = 0; ketIndex < num_particles_; ketIndex++){
-    for ( unsigned int braIndex = 0; braIndex < num_particles_; braIndex++){
-      const bool created = exatn::createTensor("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex), exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_});
-      const bool initialized = exatn::initTensorFile("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex),"oei.txt"); assert(initialized);
-    }
-  }
-  */
-
   exatn::TensorOperator ham("Hamiltonian");
   auto appended = false;
   // hamiltonian tensors 
@@ -249,7 +203,6 @@ void Simulation::constructEnergyFunctional(){
     for ( unsigned int ketIndex2 = ketIndex1+1; ketIndex2 < num_particles_; ketIndex2++){
       for ( unsigned int braIndex1 = 0; braIndex1 < num_particles_; braIndex1++){    
         for ( unsigned int braIndex2 = braIndex1+1; braIndex2 < num_particles_; braIndex2++){    
-          //appended = ham.appendComponent(exatn::getTensor("H2_" + std::to_string(ketIndex1) + std::to_string(ketIndex2) + "_" + std::to_string(braIndex1) + std::to_string(braIndex2)),{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
           appended = ham.appendComponent(hamiltonian_[0],{{ketIndex1,0},{ketIndex2,1}},{{braIndex1,2},{braIndex2,3}},{0.5,0.0}); assert(appended);
         }
       }
@@ -258,12 +211,11 @@ void Simulation::constructEnergyFunctional(){
 
   for ( unsigned int ketIndex = 0; ketIndex < num_particles_; ketIndex++){
     for ( unsigned int braIndex = 0; braIndex < num_particles_; braIndex++){
-      //appended = ham.appendComponent(exatn::getTensor("H1_" + std::to_string(ketIndex) + "_" + std::to_string(braIndex)),{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
       appended = ham.appendComponent(hamiltonian_[1],{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
     }
   }
 
- 
+  // energy functional as closed product
   exatn::TensorExpansion closedProd((*bra_ansatz_),(*ket_ansatz_),ham);
   functional_ = std::make_shared<exatn::TensorExpansion>(closedProd);
   (*functional_).printIt();
@@ -309,11 +261,30 @@ void Simulation::initWavefunctionAnsatz(){
       std::cout << iter->network_->getTensor(i)->getName() << std::endl; 
       const std::string TENSOR_NAME = iter->network_->getTensor(i)->getName();
       initialized = exatn::initTensorRnd(TENSOR_NAME); assert(initialized);
-      // scale tensors
-      double norm = 0.;
-      success = exatn::computeNorm2Sync(TENSOR_NAME, norm); assert(success);
-     // success = exatn::scaleTensor(TENSOR_NAME, 1.0/norm); assert(success);
-     // success = exatn::printTensorSync(TENSOR_NAME); assert(success);
+    }
+  }
+
+  // compute norm of MPS
+  auto created = exatn::createTensorSync("AC_NetworkABCD",exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_, total_orbitals_, total_orbitals_,total_orbitals_}); assert(created);
+  auto acNetworkABCD = exatn::getTensor("AC_NetworkABCD");
+  bool evaluated = exatn::evaluateSync((*ket_ansatz_),acNetworkABCD); assert(evaluated);
+  double norm = 0.;
+  auto success = exatn::computeNorm2Sync("AC_NetworkABCD", norm); assert(success);
+  std::cout << "Norm of MPS ansatz: " << norm << std::endl;
+
+  // scale constituent tensors
+  for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
+    iter->network_;
+    iter->coefficient_;
+    auto & network = *(iter->network_);
+    // loop through all optimizable tensors in network
+    bool initialized = false;
+    bool success = false;
+    for ( unsigned int i = 1; i < num_particles_+1; i++){ 
+      // gettensor; indices for optimizable tensors in MPS start from #1
+      std::cout << iter->network_->getTensor(i)->getName() << std::endl; 
+      const std::string TENSOR_NAME = iter->network_->getTensor(i)->getName();
+      success     = exatn::scaleTensor(TENSOR_NAME, pow((1.0/norm),1./double(num_particles_))); assert(success);
     }
   }
 }
