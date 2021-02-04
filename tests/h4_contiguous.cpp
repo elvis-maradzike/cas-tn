@@ -6,13 +6,16 @@ using namespace std::chrono;
 
 int main(int argc, char** argv){
 
+  // active orbitals
   std::size_t nAO = 8;
+  // active particles
   std::size_t nAP = 4;
+  // core orbitals
   std::size_t nCO = 0;
+  // total orbitals
   std::size_t nTO = 8;
+  // total particles
   std::size_t nTP = 4;
-  std::size_t np = nTO, nq = nTO, nr = nTO, ns = nTO;
-  std::size_t ni = nTO, nk = nTO, nj = nTO*nTO;
   
   auto success = false, created = false, initialized = false, appended = false;
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
@@ -48,7 +51,6 @@ int main(int argc, char** argv){
   initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
   initialized = exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
 
-  std::cout << "Appending Ordering Projectors..." << std::endl;
   // array of elements to initialize tensors that comprise the ordering projectors
   std::vector<double> tmpData(nTO*nTO*nTO*nTO,0.0);
   for ( unsigned int i = 0; i < nTO; i++){
@@ -76,11 +78,11 @@ int main(int argc, char** argv){
     component->network_->markOptimizableAllTensors();
   }
 
-
-  //create tensors for ordering projectors
+  //create tensors: ordering projectors
   created = exatn::createTensor("Q", TENS_ELEM_TYPE, exatn::TensorShape{nTO, nTO, nTO, nTO}); assert(created);
   initialized = exatn::initTensorData("Q", tmpData); assert(initialized);
 
+  std::cout << "Appending Ordering Projectors..." << std::endl;
   unsigned int tensorCounter = 2;
   for (auto iter = expansion_abcd->begin(); iter != expansion_abcd->end(); ++iter){
     iter->network_;
@@ -92,10 +94,12 @@ int main(int argc, char** argv){
     tensorCounter++;
     appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q"),{1,2}); assert(appended);
   } 
+  // checking expansion
   expansion_abcd->printIt();
 
+  // hamiltonian
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
-  // two-body
+  // two-body part
   for ( unsigned int ketIndex1 = 0; ketIndex1 < nTP; ketIndex1++){
     for ( unsigned int ketIndex2 = ketIndex1+1; ketIndex2 < nTP; ketIndex2++){
       for ( unsigned int braIndex1 = 0; braIndex1 < nTP; braIndex1++){
@@ -105,7 +109,7 @@ int main(int argc, char** argv){
       }
     }
   }
-  // one-body
+  // one-body part
   for ( unsigned int ketIndex = 0; ketIndex < nTP; ketIndex++){
     for ( unsigned int braIndex = 0; braIndex < nTP; braIndex++){
       auto appended = ham->appendComponent(h1,{{ketIndex,0}},{{braIndex,1}},{1.0,0.0}); assert(appended);
@@ -115,6 +119,7 @@ int main(int argc, char** argv){
   // print ordering projector before optimization
   success = exatn::printTensorSync("Q"); assert(success);
 
+  // call ExaTN optimizer
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
   exatn::TensorNetworkOptimizer optimizer(ham,expansion_abcd,1e-5);
   optimizer.resetLearningRate(0.1);
@@ -127,8 +132,14 @@ int main(int argc, char** argv){
   }else{
    std::cout << "Optimization failed!" << std::endl; assert(false);
   }
- 
- 
+
+  // destroying tensors 
+  auto destroyed = false;
+  destroyed = exatn::destroyTensor("H1"); assert(destroyed);
+  destroyed = exatn::destroyTensor("H2"); assert(destroyed);
+  destroyed = exatn::destroyTensor("Q"); assert(destroyed);
+  destroyed = exatn::destroyTensor("ABCD"); assert(destroyed);
+
  }
 
  
