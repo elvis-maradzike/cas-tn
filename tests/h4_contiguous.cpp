@@ -24,12 +24,13 @@ int main(int argc, char** argv){
   {
   // declare tensor network
   auto abcd = std::make_shared<exatn::Tensor>("ABCD", exatn::TensorShape{nTO,nTO,nTO,nTO});
+  auto tn_abcd = std::make_shared<exatn::Tensor>("TN_ABCD", exatn::TensorShape{nTO,nTO,nTO,nTO});
   
   auto network_abcd = exatn::makeSharedTensorNetwork(
                  "NetworkABCD", //tensor network name
-                 "ABCD(p,q,r,s)+=ABCD(p,q,r,s)",
+                 "TN_ABCD(p,q,r,s)+=ABCD(p,q,r,s)",
                  std::map<std::string,std::shared_ptr<exatn::Tensor>>{
-                  {"ABCD",abcd}
+                  {"TN_ABCD",tn_abcd},{"ABCD",abcd}
                  }
                 );
 
@@ -121,8 +122,8 @@ int main(int argc, char** argv){
 
   // call ExaTN optimizer
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
-  exatn::TensorNetworkOptimizer optimizer(ham,expansion_abcd,1e-5);
-  optimizer.resetLearningRate(0.1);
+  exatn::TensorNetworkOptimizer optimizer(ham,expansion_abcd,0.9);
+  optimizer.resetLearningRate(0.5);
   bool converged = optimizer.optimize();
   bool success = exatn::sync(); assert(success);
   if(converged){
