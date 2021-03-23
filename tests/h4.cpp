@@ -8,33 +8,38 @@ using namespace castn;
 
 int main(int argc, char** argv){
 
-  std::size_t num_orbitals = 8;
-  std::size_t num_particles = 4;
-  std::size_t num_core_orbitals = 0;
-  std::size_t total_orbitals = 8;
-  std::size_t total_particles = 4;
-  std::size_t np = total_orbitals, nq = total_orbitals;
-  std::size_t nr = total_orbitals, ns = total_orbitals;
-  std::size_t ni = total_orbitals, nk = total_orbitals;
-  std::size_t nj = total_orbitals * total_orbitals;
+  // active orbitals
+  std::size_t nao = 8;
+  // active particles
+  std::size_t nap = 4;
+  // core orbitals
+  std::size_t nco = 0;
+  // total orbitals
+  std::size_t nto = 8;
+  // total particles
+  std::size_t ntp = 4;
+  // wavefunction ansatz parameters
+  std::size_t np = nto, nq = nto, nr = nto, ns = nto;
+  std::size_t ni = nto, nj = nto * nto, nk = nto;
   
   auto success = false, created = false, initialized = false, appended = false;
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
 
   exatn::initialize();
   {
-  // declare tensor network
+  // declare tensor network A-B-C-D
   auto a = std::make_shared<exatn::Tensor>("A", exatn::TensorShape{np,ni});
   auto b = std::make_shared<exatn::Tensor>("B", exatn::TensorShape{ni,nq,nj});
   auto c = std::make_shared<exatn::Tensor>("C", exatn::TensorShape{nj,nr,nk});
   auto d = std::make_shared<exatn::Tensor>("D", exatn::TensorShape{nk,ns});
   auto abcd = std::make_shared<exatn::Tensor>("ABCD", exatn::TensorShape{np,nq,nr,ns});
+  auto tn_abcd = std::make_shared<exatn::Tensor>("TN_ABCD", exatn::TensorShape{np,nq,nr,ns});
   
   auto network_abcd = exatn::makeSharedTensorNetwork(
                  "NetworkABCD", //tensor network name
-                 "ABCD(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)",
+                 "TN_ABCD(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)",
                  std::map<std::string,std::shared_ptr<exatn::Tensor>>{
-                  {"ABCD",abcd},
+                  {"TN_ABCD",tn_abcd}, 
                   {"A",a},
                   {"B",b},
                   {"C",c},
@@ -43,6 +48,7 @@ int main(int argc, char** argv){
                 );
 
   // create constituent tensors
+  created = exatn::createTensor(tn_abcd, TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensor(abcd, TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensor(a, TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensor(b, TENS_ELEM_TYPE); assert(created);
@@ -52,7 +58,7 @@ int main(int argc, char** argv){
   std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
 
   // declare object from Simulation class
-  Simulation myObject(num_orbitals, num_particles, num_core_orbitals, total_orbitals, total_particles);
+  Simulation myObject(nao, nap, nco, nto, ntp);
   myObject.resetWaveFunctionAnsatz(network_abcd);
   myObject.resetHamiltonian(hamiltonian);
   myObject.optimize(1,1e-5);
