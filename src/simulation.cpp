@@ -90,9 +90,30 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   // set up wavefunction and its optimization
   markOptimizableTensors();
   appendOrderingProjectors();
-  constructEnergyFunctional();
-  constructEnergyDerivatives();
+ // constructEnergyFunctional();
+ // constructEnergyDerivatives();
+
+  auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
+  auto appended = false;
+  // hamiltonian tensors 
+  auto success = ham->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
+  success = ham->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
+
+ 
   initWavefunctionAnsatz();
+
+  exatn::TensorNetworkOptimizer::resetDebugLevel(1);
+  exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_, 0.00001);
+  optimizer.resetLearningRate(0.1);
+  bool converged = optimizer.optimize();
+  success = exatn::sync(); assert(success);
+  if(converged){
+   std::cout << "Optimization succeeded!" << std::endl;
+  }else{
+   std::cout << "Optimization failed!" << std::endl; assert(false);
+  }
+
+  /*
 
   double energyOld = 0.0, energyNew = 1.0, energyChange = 0.0, maxAbsGrad = 0.0;
 
@@ -107,12 +128,14 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
     energyChange = energyNew - energyOld;
     std::cout << "Energy Change: " << energyChange << std::endl;
   }while ((fabs(energyChange) > convergence_thresh_));
- 
+   
+  */
   return true;
 }
 
 /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
 void Simulation::appendOrderingProjectors(){
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   std::cout << "Appending Ordering Projectors..." << std::endl;
   // array of elements to initialize tensors that comprise the ordering projectors
   std::vector<double> tmpData(total_orbitals_*total_orbitals_*total_orbitals_*total_orbitals_,0.0);
@@ -135,11 +158,18 @@ void Simulation::appendOrderingProjectors(){
   }
  
   //create tensors for ordering projectors
-  auto created = exatn::createTensor("Q", exatn::TensorElementType::REAL64, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  auto created = exatn::createTensor("Q", TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
   auto initialized = exatn::initTensorData("Q", tmpData); assert(initialized);
   
   auto appended = false;
-  unsigned int tensorCounter = 1+num_particles_;
+  int num_optimizable = 0;
+  for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
+    iter->network;
+    iter->coefficient;
+    auto & network = *(iter->network);
+    num_optimizable = network.getNumTensors();
+  }
+  unsigned int tensorCounter = 1+num_optimizable;
   for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
     iter->network;
     iter->coefficient;
@@ -164,6 +194,7 @@ void Simulation::appendOrderingProjectors(){
 
 void Simulation::constructEnergyFunctional(){
 
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   bool created = false, success = false, destroyed = false;
   bra_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ket_ansatz_);
   bra_ansatz_->conjugate();
@@ -174,6 +205,8 @@ void Simulation::constructEnergyFunctional(){
   // hamiltonian tensors 
   success = ham->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
   success = ham->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
+
+
 
   // energy functional as closed product
   exatn::TensorExpansion psiHpsi(*bra_ansatz_,*ket_ansatz_,*ham);
@@ -186,19 +219,22 @@ void Simulation::constructEnergyFunctional(){
 }
 
 void Simulation::constructEnergyDerivatives(){
+  
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
     iter->network;
     iter->coefficient;
     auto & network = *(iter->network);
     // loop through all optimizable tensors in tensor network
     bool created = false;
-    for ( unsigned int i = 1; i < num_particles_+1; i++){ 
+    for ( unsigned int tensor_id = 1; tensor_id < network.getNumTensors()+1 -(num_particles_-1); tensor_id++){
+      
       // gettensor; indices for tensors in MPS start from #1
-      std::cout << iter->network->getTensor(i)->getName() << std::endl; 
-      const std::string TENSOR_NAME = iter->network->getTensor(i)->getName();
+      std::cout << " pp " << iter->network->getTensor(tensor_id)->getName() << std::endl; 
+      const std::string TENSOR_NAME = iter->network->getTensor(tensor_id)->getName();
       const exatn::TensorShape SHAPE = (*exatn::getTensor(TENSOR_NAME)).getShape();
-      created = exatn::createTensor("DerivativeTensorE_"+TENSOR_NAME,exatn::TensorElementType::REAL64,SHAPE); assert(created);
-      created = exatn::createTensor("DerivativeTensorN_"+TENSOR_NAME,exatn::TensorElementType::REAL64,SHAPE); assert(created);
+      created = exatn::createTensor("DerivativeTensorE_"+TENSOR_NAME,TENS_ELEM_TYPE,SHAPE); assert(created);
+      created = exatn::createTensor("DerivativeTensorN_"+TENSOR_NAME,TENS_ELEM_TYPE,SHAPE); assert(created);
       exatn::TensorExpansion tmp1(*functional_,TENSOR_NAME,true);
       exatn::TensorExpansion tmp2(*norm_,TENSOR_NAME,true);
       tmp1.rename("DerivativeExpansionE_"+TENSOR_NAME);
@@ -213,47 +249,156 @@ void Simulation::constructEnergyDerivatives(){
 }
 
 void Simulation::initWavefunctionAnsatz(){
+  
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
+  const auto TENSOR_SHAPE = exatn::TensorShape{};
+  const auto TENSOR_SHAPE2 = exatn::TensorShape{total_orbitals_, total_orbitals_, total_orbitals_, total_orbitals_};
   // initialize all tensors that comprise the wavefunction ansatz
-  for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
+  for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
+    iter->network;
+    iter->coefficient;
+    auto & network = *(iter->network);
+    
+    // loop through all optimizable tensors in network
+    int num_optimizable = network.getNumTensors()+1 -(num_particles_-1);
+    for ( auto tensor_id = 1; tensor_id < num_optimizable; ++tensor_id){
+      // gettensor; indices for optimizable tensors in MPS start from #1
+      const std::string TENSOR_NAME = iter->network->getTensor(tensor_id)->getName();
+      std::cout << "p " << TENSOR_NAME << std::endl; 
+      //auto initialized = exatn::initTensorRnd(TENSOR_NAME); assert(initialized);
+      auto initialized = exatn::initTensorFile(TENSOR_NAME,"h4_tensor.txt"); assert(initialized);
+     // auto l2norm = 0.0;
+     // auto getl2norm = exatn::computeNorm2Sync(TENSOR_NAME, l2norm); assert(getl2norm);
+     // double factor = 1.0/total_orbitals_;
+     // auto scaled = exatn::scaleTensor(TENSOR_NAME, factor); assert(scaled);
+    }
+  }
+  
+  /*
+  // evaluate norm
+  auto created = exatn::createTensorSync("AC_PsiPsi", TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
+  auto ac_PsiPsi = exatn::getTensor("AC_PsiPsi");
+  auto initialized = exatn::initTensor("AC_PsiPsi", 0.0); assert(initialized);
+  auto evaluated = exatn::evaluateSync(*norm_,ac_PsiPsi); assert(evaluated);
+  auto talsh_tensor = exatn::getLocalTensor("AC_PsiPsi");
+  const double * body_ptr;
+  talsh_tensor = exatn::getLocalTensor("AC_PsiPsi");
+  if (talsh_tensor->getDataAccessHostConst(&body_ptr)){
+    for ( int i = 0; i < talsh_tensor->getVolume(); i++){
+      normVal_ = body_ptr[i];
+    }
+  }
+  body_ptr = nullptr;
+  std::cout << "Norm before renormalization is: " << normVal_ << std::endl; 
+
+  auto success = exatn::printTensorSync("AC_PsiPsi"); assert(success);
+
+  // renormalize optimizable tensors
+  for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
     iter->network;
     iter->coefficient;
     auto & network = *(iter->network);
     // network.printIt();
     // loop through all optimizable tensors in network
-    bool initialized = false;
-    bool success = false;
-    for ( unsigned int i = 1; i < num_particles_+1; i++){ 
+    for ( unsigned int i = 1; i < network.getNumTensors()+1 -(num_particles_-1); i++){ 
       // gettensor; indices for optimizable tensors in MPS start from #1
       std::cout << iter->network->getTensor(i)->getName() << std::endl; 
       const std::string TENSOR_NAME = iter->network->getTensor(i)->getName();
-      initialized = exatn::initTensorRnd(TENSOR_NAME); assert(initialized);
+      auto l2norm = 0.0;
+      auto getl2norm = exatn::computeNorm2Sync(TENSOR_NAME, l2norm); assert(getl2norm);
+      std::cout << "Norm of " << TENSOR_NAME << " before renormalization is: " << l2norm << std::endl; 
+      int num_optimizable = network.getNumTensors() - (num_particles_-1);
+      double factor = sqrt(1.0/pow(normVal_, double(1.0)/double(num_optimizable)));
+      //std::cout << "num_optimizable: " << num_optimizable << std::endl;
+      //double factor = 1.0;
+      auto scaled = exatn::scaleTensor(TENSOR_NAME, factor); assert(scaled);
+      getl2norm = exatn::computeNorm2Sync(TENSOR_NAME, l2norm); assert(getl2norm);
+      std::cout << "Norm of " << TENSOR_NAME << " after renormalization is: " << l2norm << std::endl; 
+      
     }
   }
+
+  created = exatn::createTensorSync("AC2", TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
+  auto ac_2 = exatn::getTensor("AC2");
+  initialized = exatn::initTensor("AC2", 0.0); assert(initialized);
+  evaluated = exatn::evaluateSync(*norm_,ac_2); assert(evaluated);
+  success = exatn::printTensorSync("AC2"); assert(success);
+
+  auto destroyed = exatn::destroyTensorSync("AC_PsiPsi"); assert(destroyed);
+  destroyed = exatn::destroyTensorSync("AC2"); assert(destroyed);
+
+  */
+  std::cout << "Wavefunction ansatz has been initialized and normalized " << std::endl;
 }
 
+
 double Simulation::evaluateEnergyFunctional(){
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
+  const auto TENSOR_SHAPE = exatn::TensorShape{};
+  auto created = exatn::createTensorSync("AC3a",TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
+  auto ac3a = exatn::getTensor("AC3a");
+  auto initialized = exatn::initTensor("AC3a", 0.0); assert(initialized);
+  double val = 0.0;
+  auto evaluated = exatn::evaluateSync(*norm_,ac3a); assert(evaluated);
+  auto talsh_tensor = exatn::getLocalTensor("AC3a");
+  const double * body_ptr;
+  if (talsh_tensor->getDataAccessHostConst(&body_ptr)){
+    for ( int i = 0; i < talsh_tensor->getVolume(); i++){
+      val  = body_ptr[i];
+    }
+  }
+  body_ptr = nullptr;
+  // renormalize optimizable tensors
+  for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
+    iter->network;
+    iter->coefficient;
+    auto & network = *(iter->network);
+    // network.printIt();
+    // loop through all optimizable tensors in network
+    for ( unsigned int i = 1; i < network.getNumTensors()+1 -(num_particles_-1); i++){ 
+      // gettensor; indices for optimizable tensors in MPS start from #1
+      std::cout << iter->network->getTensor(i)->getName() << std::endl; 
+      const std::string TENSOR_NAME = iter->network->getTensor(i)->getName();
+      auto l2norm = 0.0;
+      auto getl2norm = exatn::computeNorm2Sync(TENSOR_NAME, l2norm); assert(getl2norm);
+      std::cout << "Norm of " << TENSOR_NAME << " before renormalization is: " << l2norm << std::endl; 
+      int num_optimizable = network.getNumTensors() - (num_particles_-1);
+      double factor = sqrt(1.0/pow(val, double(1.0)/double(num_optimizable)));
+      //std::cout << "num_optimizable: " << num_optimizable << std::endl;
+      //double factor = 1.0;
+      auto scaled = exatn::scaleTensor(TENSOR_NAME, factor); assert(scaled);
+      getl2norm = exatn::computeNorm2Sync(TENSOR_NAME, l2norm); assert(getl2norm);
+      std::cout << "Norm of " << TENSOR_NAME << " after renormalization is: " << l2norm << std::endl; 
+      
+    }
+  }
+  
   // create accumulator rensor for the closed tensor expansion
-  auto created = exatn::createTensorSync("AC_PsiHPsi",exatn::TensorElementType::REAL64, exatn::TensorShape{}); assert(created);
-  created = exatn::createTensorSync("AC_PsiPsi",exatn::TensorElementType::REAL64, exatn::TensorShape{}); assert(created);
+  created = exatn::createTensorSync("AC_PsiHPsi",TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
+  created = exatn::createTensorSync("AC3",TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
   auto ac_PsiHPsi = exatn::getTensor("AC_PsiHPsi");
-  auto ac_PsiPsi = exatn::getTensor("AC_PsiPsi");
-  exatn::TensorExpansion psipsi(*bra_ansatz_,*ket_ansatz_);
-  bool evaluated = exatn::evaluateSync((*functional_),ac_PsiHPsi); assert(evaluated);
-  evaluated = exatn::evaluateSync(psipsi,ac_PsiPsi); assert(evaluated);
+  auto ac3 = exatn::getTensor("AC3");
+  initialized = exatn::initTensor("AC3", 0.0); assert(initialized);
+  initialized = exatn::initTensor("AC_PsiHPsi", 0.0); assert(initialized);
+  evaluated = exatn::evaluateSync(*functional_,ac_PsiHPsi); assert(evaluated);
+  evaluated = exatn::evaluateSync(*norm_,ac3); assert(evaluated);
+
+  auto success = exatn::printTensorSync("AC3"); assert(success);
+
+  
 
   // get value 
   double energy = 0.0;
   double val_psihpsi = 0.0;
   double val_psipsi = 0.0;
-  auto talsh_tensor = exatn::getLocalTensor("AC_PsiHPsi");
-  const double * body_ptr;
+  talsh_tensor = exatn::getLocalTensor("AC_PsiHPsi");
   if (talsh_tensor->getDataAccessHostConst(&body_ptr)){
     for ( int i = 0; i < talsh_tensor->getVolume(); i++){
       val_psihpsi  = body_ptr[i];
     }
   }
   body_ptr = nullptr;
-  talsh_tensor = exatn::getLocalTensor("AC_PsiPsi");
+  talsh_tensor = exatn::getLocalTensor("AC3");
   if (talsh_tensor->getDataAccessHostConst(&body_ptr)){
     for ( int i = 0; i < talsh_tensor->getVolume(); i++){
       val_psipsi  = body_ptr[i];
@@ -262,6 +407,7 @@ double Simulation::evaluateEnergyFunctional(){
   }
   body_ptr = nullptr;
 
+  std::cout << "<Psi|H|Psi>, <Psi|Psi>: " << val_psihpsi << ", " << val_psipsi << std::endl;
   energy = val_psihpsi/val_psipsi;
 
   // store value
@@ -269,10 +415,11 @@ double Simulation::evaluateEnergyFunctional(){
   for ( unsigned int i = 0; i < num_states_; ++i){
     state_energies_.push_back(energy);
   }
-  std::cout << "Energy: " << energy << " Eh" << std::endl;
+  std::cout << "Energy: " << energy << " Eh and norm: " << val_psipsi << std::endl;
   // destroy AC0
   auto destroyed = exatn::destroyTensorSync("AC_PsiHPsi"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("AC_PsiPsi"); assert(destroyed);
+  destroyed = exatn::destroyTensorSync("AC3"); assert(destroyed);
+  destroyed = exatn::destroyTensorSync("AC3a"); assert(destroyed);
 
   return energy;
 }
@@ -295,12 +442,14 @@ void Simulation::evaluateEnergyDerivatives(){
     auto derivative_expansion_name_n = (*derivative_expansion_n).getName();
     std::cout << derivative_expansion_name_n << std::endl;
     std::cout << ac_deriv_n_name << std::endl;
+    auto initialized = exatn::initTensorSync(ac_deriv_e->getName(),0.0); assert(initialized);
+    initialized = exatn::initTensorSync(ac_deriv_n->getName(),0.0); assert(initialized);
     auto evaluated = exatn::evaluateSync((*derivative_expansion_e), ac_deriv_e); assert(evaluated);
     evaluated = exatn::evaluateSync((*derivative_expansion_n), ac_deriv_n); assert(evaluated);
     // get maxAbsGrad and maxAbs
     auto grad = std::make_shared<exatn::Tensor>("Grad_"+TENSOR_NAME, TENSOR_SHAPE, TENSOR_SIGNATURE);
     auto created = exatn::createTensorSync(grad,TENSOR->getElementType()); assert(created);
-    auto initialized = exatn::initTensorSync(grad->getName(),0.0); assert(initialized);
+    initialized = exatn::initTensorSync(grad->getName(),0.0); assert(initialized);
     std::string add_pattern;
     auto generated = exatn::generate_addition_pattern(RANK,add_pattern,true,grad->getName(), ac_deriv_e_name); assert(generated);
     auto added = exatn::addTensors(add_pattern,-1.0/normVal_); assert(added);
@@ -378,7 +527,7 @@ void Simulation::updateWavefunctionAnsatzTensors(){
     auto v2c = std::make_shared<exatn::Tensor>("V2C_"+TENSOR_NAME, TENSOR_SHAPE, TENSOR_SIGNATURE);
     created = exatn::createTensorSync(v2c,TENSOR->getElementType()); assert(created);
 
-    auto b1 = 0.9, b2 = 0.999, e  = 1.e-8, lr = 0.8;
+    auto b1 = 0.01, b2 = 0.999, e  = 1.e-8, lr = 0.1;
    
     // compute first-order momenta
     initialized = exatn::initTensor(v1c->getName(), 0.0); assert(initialized);
