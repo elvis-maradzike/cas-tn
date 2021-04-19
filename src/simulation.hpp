@@ -102,28 +102,20 @@ protected:
  std::vector<double> state_energies_; //quantum state energies
  double convergence_thresh_;          //tensor convergence threshold (for maxabs)
 
- double maxAbsGrad_; // absolute value of largest element in gradient tensor
- double maxAbs_;     // absolute value of largest element in tensor factor in question
-
- double normVal_;       // wavefunction norm <Psi|Psi>
-
  std::shared_ptr<exatn::TensorExpansion> functional_; //energy trace functional
- std::shared_ptr<exatn::TensorExpansion> norm_; // norm 
+ std::shared_ptr<exatn::TensorExpansion> norm_;       // norm 
+ std::shared_ptr<exatn::TensorExpansion> ham_ket_;    // ham_ket
 
- std::vector<std::tuple<std::string,                             //tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, //derivative tensor expansion
-                        std::shared_ptr<exatn::Tensor>,           //derivative tensor
-                        std::shared_ptr<exatn::TensorExpansion>, //derivative tensor expansion
-                        std::shared_ptr<exatn::Tensor>           //derivative tensor
-                       >> derivatives_; //derivatives of the energy functional
+ std::vector<std::tuple<std::string,                             // tensor name
+                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion
+                        std::shared_ptr<exatn::Tensor>           // derivative tensor
+                       >> derivatives_;                          //derivatives of the energy functional
 
 
  struct Environment{
- std::shared_ptr<exatn::Tensor> tensor;     //tensor being optimized
- std::shared_ptr<exatn::Tensor> gradient;   //gradient w.r.t. the tensor
- //exatn::TensorExpansion gradient_expansion_e; //gradient tensor network expansion
- //std::shared_ptr<exatn::Tensor> gradient_n;   //gradient w.r.t. the tensor
- //exatn::TensorExpansion gradient_expansion_n; //gradient tensor network expansion
+ std::shared_ptr<exatn::Tensor> tensor;                // tensor being optimized
+ std::shared_ptr<exatn::Tensor> gradient;              // gradient w.r.t. the tensor H|x - rho(x)M|x
+ exatn::TensorExpansion gradient_expansion;            // gradient tensor network expansion
  };
 
  std::vector<Environment> environments_;
