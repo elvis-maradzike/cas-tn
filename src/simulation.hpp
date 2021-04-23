@@ -107,15 +107,19 @@ protected:
  std::shared_ptr<exatn::TensorExpansion> ham_ket_;    // ham_ket
 
  std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion
-                        std::shared_ptr<exatn::Tensor>           // derivative tensor
-                       >> derivatives_;                          //derivatives of the energy functional
+                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H|x>)
+                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|x>)
+                        std::shared_ptr<exatn::Tensor>,          // derivative tensor (<x|H|x>)
+                        std::shared_ptr<exatn::Tensor>,          // derivative tensor (<x|x>)
+                        std::shared_ptr<exatn::TensorExpansion>  // hessian tensor expansion
+                       >> derivatives_;                          // derivatives of the energy functional
 
 
  struct Environment{
  std::shared_ptr<exatn::Tensor> tensor;                // tensor being optimized
  std::shared_ptr<exatn::Tensor> gradient;              // gradient w.r.t. the tensor H|x - rho(x)M|x
  exatn::TensorExpansion gradient_expansion;            // gradient tensor network expansion
+ exatn::TensorExpansion hessian_expansion;             // hessian tensor network expansion
  };
 
  std::vector<Environment> environments_;
