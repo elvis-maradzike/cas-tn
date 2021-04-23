@@ -52,10 +52,7 @@ int main(int argc, char** argv){
   myObject.resetWaveFunctionAnsatz(network_abcd);
   myObject.resetHamiltonian(hamiltonian);
   myObject.optimize(1,1e-4);
-
-  
   }
- 
  
   exatn::finalize();
  

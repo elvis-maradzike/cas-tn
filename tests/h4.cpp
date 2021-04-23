@@ -20,7 +20,7 @@ int main(int argc, char** argv){
   std::size_t ntp = 4;
   // wavefunction ansatz parameters
   std::size_t np = nto, nq = nto, nr = nto, ns = nto;
-  std::size_t ni = nto, nj = nto * nto, nk = nto;
+  std::size_t ni = nto, nj = nto*nto, nk = nto;
   
   auto success = false, created = false, initialized = false, appended = false;
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
