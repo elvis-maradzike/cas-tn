@@ -273,8 +273,9 @@ void Simulation::initWavefunctionAnsatz(){
       if (tensor.isOptimizable()){
         // number of tensors in network less the number of ordering projectors
         int num_optimizable = network->network->getNumTensors() - (num_particles_-1);
+        std::cout << "Number of optimizable tensors: " << num_optimizable << std::endl;
         //double factor = pow(sqrt(1.0/val_norm), 1.0/double(num_particles_));
-        double factor = pow(sqrt(1.0/val_norm), 1.0/double(num_optimizable));
+        double factor = pow(sqrt(1.0/val_norm), 1.0/double(1.0));
         auto scaled = exatn::scaleTensor(tensor.getName(), factor); assert(scaled);
       } 
     }
@@ -335,8 +336,9 @@ double Simulation::evaluateEnergyFunctional(){
     for ( auto tensor_conn = network->network->begin(); tensor_conn != network->network->end(); ++tensor_conn){
       const auto & tensor = tensor_conn->second;
       if (tensor.isOptimizable()){
-        double factor = pow(sqrt(1.0/val_norm), 1.0/double(num_particles_));
-        //double factor = pow(sqrt(1.0/val_norm), 1.0/double(1.0));
+        int num_optimizable = network->network->getNumTensors() - (num_particles_-1);
+        std::cout << "Number of optimizable tensors: " << num_optimizable << std::endl;
+        double factor = pow(sqrt(1.0/val_norm), 1.0/double(1.0));
         auto scaled = exatn::scaleTensor(tensor.getName(), factor); assert(scaled);
       } 
     }
@@ -448,7 +450,7 @@ void Simulation::updateWavefunctionAnsatzTensors(){
 
     generated = exatn::generate_addition_pattern(rank,add_pattern,true,tensor->getName(), gradient_name); assert(generated);
     std::cout << add_pattern << std::endl;
-    auto lr = 0.5;
+    auto lr = 0.75;
     added = exatn::addTensors(add_pattern, -lr); assert(added);
     add_pattern.clear();
     std::cout << " Done updating tensor "  << tensor_name << std::endl;
