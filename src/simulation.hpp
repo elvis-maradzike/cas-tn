@@ -109,17 +109,20 @@ protected:
  std::vector<std::tuple<std::string,                             // tensor name
                         std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H|x>)
                         std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|x>)
+                        std::shared_ptr<exatn::TensorExpansion>, // hessian tensor expansion (<x|H|x>)
+                        std::shared_ptr<exatn::TensorExpansion>, // hessian tensor expansion (<x|x>)
                         std::shared_ptr<exatn::Tensor>,          // derivative tensor (<x|H|x>)
                         std::shared_ptr<exatn::Tensor>,          // derivative tensor (<x|x>)
-                        std::shared_ptr<exatn::TensorExpansion>  // hessian tensor expansion
+                        std::shared_ptr<exatn::Tensor>,          // hessian tensor (<x|H|x>)
+                        std::shared_ptr<exatn::Tensor>           // hessian tensor (<x|x>)
                        >> derivatives_;                          // derivatives of the energy functional
 
 
  struct Environment{
  std::shared_ptr<exatn::Tensor> tensor;                // tensor being optimized
  std::shared_ptr<exatn::Tensor> gradient;              // gradient w.r.t. the tensor H|x - rho(x)M|x
- exatn::TensorExpansion gradient_expansion;            // gradient tensor network expansion
- exatn::TensorExpansion hessian_expansion;             // hessian tensor network expansion
+ exatn::TensorExpansion gradient_expansion;            // tensor network expansion: deriv <x|H|x>
+ exatn::TensorExpansion gradient_aux_expansion;         // tensor network expansion: deriv <x|x>
  };
 
  std::vector<Environment> environments_;
