@@ -51,7 +51,7 @@ int main(int argc, char** argv){
   Simulation myObject(nAO, nAP, nCO, nTO, nTP);
   myObject.resetWaveFunctionAnsatz(network_abcd);
   myObject.resetHamiltonian(hamiltonian);
-  myObject.optimize(1,1e-4);
+  myObject.optimize(1,1e-5);
   }
  
   exatn::finalize();
