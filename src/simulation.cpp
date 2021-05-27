@@ -107,6 +107,13 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   created = exatn::createTensorSync("AC_Deriv_xSx",TENS_ELEM_TYPE, TENS_SHAPE_4INDEX); assert(created);
   auto ac_d_xSx = exatn::getTensor("AC_Deriv_xSx");
 
+  // functional tensors:
+    //<x|H|x>
+  created = exatn::createTensorSync("AC_xHx",TENS_ELEM_TYPE, TENS_SHAPE_0INDEX); assert(created);
+  auto ac_xHx = exatn::getTensor("AC_xHx");
+    //<x|S|x>
+  created = exatn::createTensorSync("AC_xSx",TENS_ELEM_TYPE, TENS_SHAPE_0INDEX); assert(created);
+  auto ac_xSx = exatn::getTensor("AC_xSx");
   //marking optimizable tensors
   markOptimizableTensors();
   
@@ -127,8 +134,41 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   exatn::TensorExpansion norm(*bra_ansatz_,*ket_ansatz_);
   norm_ = std::make_shared<exatn::TensorExpansion>(norm);
 
+
+
+
   //initializing optimizable tensors
   initWavefunctionAnsatz();
+
+  double energy = 0.0;
+  initialized = exatn::initTensor(ac_xSx->getName(), 0.0); assert(initialized);
+  auto evaluated = exatn::evaluateSync(*norm_,ac_xSx); assert(evaluated);
+  std::cout << " Norm has been evaluated ....." << std::endl;
+  auto local_copy = exatn::getLocalTensor(ac_xSx->getName()); assert(local_copy);
+  const  exatn::TensorDataType<TENS_ELEM_TYPE>::value * body_ptr;
+  auto access_granted = local_copy->getDataAccessHostConst(&body_ptr); assert(access_granted);
+  double val_norm = *body_ptr;
+  body_ptr = nullptr;
+  std::cout << " Norm value has been recorded ....." << std::endl;
+  //auto success = exatn::printTensorSync(ac_norm->getName()); assert(success);
+  
+  
+  // create accumulator tensor for the closed tensor expansion
+  initialized = exatn::initTensor(ac_xHx->getName(), 0.0); assert(initialized);
+  evaluated = exatn::evaluateSync(*functional_,ac_xHx); assert(evaluated);
+  // get value 
+  double val_xHx = 0.0;
+
+  auto talsh_tensor = exatn::getLocalTensor(ac_xHx->getName());
+  access_granted = false;
+  if (talsh_tensor->getDataAccessHostConst(&body_ptr)){
+    for ( int i = 0; i < talsh_tensor->getVolume(); i++){
+      val_xHx = body_ptr[i];
+    }
+  }
+  body_ptr = nullptr;
+
+  energy = val_xHx/val_norm;
 
   // evaluating derivative, w.r.t. optimizable tensors available 
   std::unordered_set<std::string> tensor_names;
@@ -144,12 +184,18 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
           auto evaluated = exatn::evaluateSync(tmp1d,ac_d_xHx); assert(evaluated);
           initialized = exatn::initTensor(ac_d_xSx->getName(), 0.0); assert(initialized);
           evaluated = exatn::evaluateSync(tmp2d,ac_d_xSx); assert(evaluated);
+          std::cout << ".......... deriv(x|H|x>) ............" << std::endl; 
+          success = exatn::printTensorSync(ac_d_xHx->getName()); assert(success);
+          std::cout << ".......... deriv(x|S|x>) ............" << std::endl; 
+          success = exatn::printTensorSync(ac_d_xSx->getName()); assert(success);
           std::string add_pattern;
           auto generated = exatn::generate_addition_pattern(rank,add_pattern,true,ac_d_xHx->getName(), ac_d_xSx->getName()); assert(generated);
           std::cout << add_pattern << std::endl;
-          auto added = exatn::addTensors(add_pattern,-1.0); assert(added);
+          auto added = exatn::addTensors(add_pattern,-energy); assert(added);
           add_pattern.clear();
           //printing out derivative
+          std::cout << ".......... deriv(x|H|x>) ............" << std::endl; 
+          success = exatn::printTensorSync(ac_d_xHx->getName()); assert(success);
           std::cout << ".......... deriv(x|H|x>)-deriv(<x|S|x>) ............" << std::endl; 
           success = exatn::printTensorSync(ac_d_xHx->getName()); assert(success);
           // computing norm of derivative
