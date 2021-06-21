@@ -49,7 +49,8 @@ int main(int argc, char** argv){
 
   // declare object from Simulation class
   Simulation myObject(nAO, nAP, nCO, nTO, nTP);
-  myObject.resetWaveFunctionAnsatz(network_abcd);
+  //myObject.resetWaveFunctionAnsatz(network_abcd);
+  myObject.resetWaveFunctionAnsatz(expansion_abcd_ket);
   myObject.resetHamiltonian(hamiltonian);
   myObject.optimize(1,1e-5);
   }

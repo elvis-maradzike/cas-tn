@@ -43,3 +43,5 @@ compile_commands.json
 **/*.jar
 /doc/doxygen/html
 /doc/doxygen/exatn-api-docs
+
+src/*.bak*

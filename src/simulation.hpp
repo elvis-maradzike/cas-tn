@@ -103,8 +103,9 @@ protected:
  double convergence_thresh_;          //tensor convergence threshold (for maxabs)
  std::size_t microIter;
  std::size_t macroIter;
+ double overall_relative_tolerance;
  std::shared_ptr<exatn::TensorExpansion> functional_; //energy trace functional
- std::shared_ptr<exatn::TensorExpansion> norm_square_;       // norm square 
+ std::shared_ptr<exatn::TensorExpansion> l2_norm_squared_;       // norm square 
 
  std::vector<std::tuple<std::string,                             // tensor name
                         std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H|x>)
@@ -121,8 +122,8 @@ protected:
  struct Environment{
  std::shared_ptr<exatn::Tensor> tensor;                // tensor being optimized
  std::shared_ptr<exatn::Tensor> gradient;              // deriv(<x|H|x) - *E deriv(<x|S|x>
- exatn::TensorExpansion gradient_expansion;            // tensor network expansion: deriv(<x|H|x>) - E*deriv(<x|S|x>
- exatn::TensorExpansion hessian_expansion;             // tensor network expansion: <x'|H|x'> - E*<x'|S|x'>
+ std::shared_ptr<exatn::TensorExpansion> gradient_expansion;            // tensor network expansion: deriv(<x|H|x>) - E*deriv(<x|S|x>
+ std::shared_ptr<exatn::TensorExpansion> hessian_expansion;             // tensor network expansion: <x'|H|x'> - 
  };
 
  std::vector<Environment> environments_;
