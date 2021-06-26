@@ -102,7 +102,7 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   bra_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ket_ansatz_);
   bra_ansatz_->rename(ket_ansatz_->getName()+"Bra");
   bra_ansatz_->conjugate();
-  bra_ansatz_->printIt();
+  //bra_ansatz_->printIt();
   
   //initializing optimizable tensors
   initWavefunctionAnsatz();
@@ -169,7 +169,7 @@ void Simulation::appendOrderingProjectors(){
     }
   }
 
-  ket_ansatz_->printIt();
+  //ket_ansatz_->printIt();
 }
 
 
