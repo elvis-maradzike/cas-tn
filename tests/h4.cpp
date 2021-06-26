@@ -21,6 +21,13 @@ int main(int argc, char** argv){
   // wavefunction ansatz parameters
   std::size_t np = nto, nq = nto, nr = nto, ns = nto;
   
+  if ( argc != 4){ 
+    printf("\n");
+    printf("    usage: ./h4.x ni nj nk \n");
+    printf("\n");
+    exit(0);
+  }
+
   // bond dimensions
   char * char1; 
   char * char2; 
@@ -31,6 +38,7 @@ int main(int argc, char** argv){
   std::size_t ni = long1;
   std::size_t nj = long2;
   std::size_t nk = long3;
+
   
   auto success = false, created = false, initialized = false, appended = false;
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
