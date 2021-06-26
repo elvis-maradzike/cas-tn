@@ -101,11 +101,8 @@ protected:
  std::size_t num_states_;             //number of the lowest-energy states to find
  std::vector<double> state_energies_; //quantum state energies
  double convergence_thresh_;          //tensor convergence threshold (for maxabs)
- std::size_t microIter;
- std::size_t macroIter;
- double overall_relative_tolerance;
  std::shared_ptr<exatn::TensorExpansion> functional_; //energy trace functional
- std::shared_ptr<exatn::TensorExpansion> l2_norm_squared_;       // norm square 
+ std::shared_ptr<exatn::TensorExpansion> bra_ket_;       // inner product
 
  std::vector<std::tuple<std::string,                             // tensor name
                         std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H|x>)

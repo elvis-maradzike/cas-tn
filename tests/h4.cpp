@@ -20,7 +20,17 @@ int main(int argc, char** argv){
   std::size_t ntp = 4;
   // wavefunction ansatz parameters
   std::size_t np = nto, nq = nto, nr = nto, ns = nto;
-  std::size_t ni = nto, nj = nto*nto, nk = nto;
+  
+  // bond dimensions
+  char * char1; 
+  char * char2; 
+  char * char3; 
+  long long1 = strtol(argv[1], &char1, 10);
+  long long2 = strtol(argv[2], &char2, 10);
+  long long3 = strtol(argv[3], &char3, 10);
+  std::size_t ni = long1;
+  std::size_t nj = long2;
+  std::size_t nk = long3;
   
   auto success = false, created = false, initialized = false, appended = false;
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
@@ -32,7 +42,6 @@ int main(int argc, char** argv){
   auto b = std::make_shared<exatn::Tensor>("B", exatn::TensorShape{ni,nq,nj});
   auto c = std::make_shared<exatn::Tensor>("C", exatn::TensorShape{nj,nr,nk});
   auto d = std::make_shared<exatn::Tensor>("D", exatn::TensorShape{nk,ns});
-  auto abcd = std::make_shared<exatn::Tensor>("ABCD", exatn::TensorShape{np,nq,nr,ns});
   auto tn_abcd = std::make_shared<exatn::Tensor>("TN_ABCD", exatn::TensorShape{np,nq,nr,ns});
   
   auto network_abcd = exatn::makeSharedTensorNetwork(
@@ -49,7 +58,6 @@ int main(int argc, char** argv){
 
   // create constituent tensors
   created = exatn::createTensor(tn_abcd, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(abcd, TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensor(a, TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensor(b, TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensor(c, TENS_ELEM_TYPE); assert(created);

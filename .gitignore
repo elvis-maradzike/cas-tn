@@ -45,3 +45,6 @@ compile_commands.json
 /doc/doxygen/exatn-api-docs
 
 src/*.bak*
+
+# test scripts
+tests/
