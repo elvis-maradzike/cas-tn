@@ -180,6 +180,7 @@ int main(int argc, char** argv){
 
   // accumulator for approximant
   auto ac_approximant = std::make_shared<exatn::Tensor>("_ac_approximant", TENS_SHAPE_ABCD);
+  auto ac = std::make_shared<exatn::Tensor>("_ac", TENS_SHAPE_ABCD);
 
   // tensor networks 
   auto network_1 = exatn::makeSharedTensorNetwork(
@@ -332,6 +333,7 @@ int main(int argc, char** argv){
   created = exatn::createTensor(ac8, TENS_ELEM_TYPE); assert(created);
 
   created = exatn::createTensor(ac_approximant, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac, TENS_ELEM_TYPE); assert(created);
 
   // initializing tensors
   auto initialized = exatn::initTensorRnd("A"); assert(initialized);
@@ -574,6 +576,7 @@ int main(int argc, char** argv){
   auto network_for_approximant = exatn::makeTensorNetwork("NetworkForApproximant","_ac_approximant(p,q,r,s)=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
   approximant->appendComponent(network_for_approximant,{1.0,0.0});
   markOptimizableTensors(approximant);
+  appendOrderingProjectors(ntp, nto, approximant);
   approximant->conjugate();
 
   success = exatn::balanceNormalizeNorm2Sync(*target,1.0,1.0,true); assert(success);
@@ -596,10 +599,16 @@ int main(int argc, char** argv){
   std::cout << "Reconstruction failed!" << std::endl; assert(false);
  }
 
-  // get network of tensors (without) ordering projectors to build ansatz
+  success = exatn::printTensorFileSync("A","tensor_a.txt"); assert(success);
+  success = exatn::printTensorFileSync("B","tensor_a.txt"); assert(success);
+  success = exatn::printTensorFileSync("C","tensor_a.txt"); assert(success);
+  success = exatn::printTensorFileSync("D","tensor_a.txt"); assert(success);
+
+  // get only the tensors in tensor network
+  auto network  = exatn::makeTensorNetwork("Network","_ac(p,q,r,s)=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
   std::shared_ptr<exatn::TensorExpansion> ansatz;
   ansatz = std::make_shared<exatn::TensorExpansion>();
-  ansatz->appendComponent(network_for_approximant,{1.0,0.0});
+  ansatz->appendComponent(network,{1.0,0.0});
   markOptimizableTensors(ansatz);
 
   auto destroyed = exatn::destroyTensorSync(h1->getName()); assert(destroyed);
