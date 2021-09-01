@@ -600,9 +600,9 @@ int main(int argc, char** argv){
  }
 
   success = exatn::printTensorFileSync("A","tensor_a.txt"); assert(success);
-  success = exatn::printTensorFileSync("B","tensor_a.txt"); assert(success);
-  success = exatn::printTensorFileSync("C","tensor_a.txt"); assert(success);
-  success = exatn::printTensorFileSync("D","tensor_a.txt"); assert(success);
+  success = exatn::printTensorFileSync("B","tensor_b.txt"); assert(success);
+  success = exatn::printTensorFileSync("C","tensor_c.txt"); assert(success);
+  success = exatn::printTensorFileSync("D","tensor_d.txt"); assert(success);
 
   // get only the tensors in tensor network
   auto network  = exatn::makeTensorNetwork("Network","_ac(p,q,r,s)=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
