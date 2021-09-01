@@ -10,6 +10,7 @@ Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <unordered_set>
+#include "mkl_lapacke.h"
 
 namespace castn {
 
@@ -24,22 +25,33 @@ void Simulation::clear()
 
 void Simulation::resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorNetwork> ansatz)
 {
- clear();
- bra_ansatz_.reset();
- ket_ansatz_.reset();
- ket_ansatz_ = std::make_shared<exatn::TensorExpansion>();
- ket_ansatz_->appendComponent(ansatz,{1.0,0.0});
- return;
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
+
+  clear();
+  bra_ansatz_.reset();
+  ket_ansatz_.reset();
+
+  ket_ansatz_ = std::make_shared<exatn::TensorExpansion>();
+  ket_ansatz_->appendComponent(ansatz,{1.0,0.0});
+  return;
+}
+
+void Simulation::resetDummyTensorNetworkExpansion(std::shared_ptr<exatn::TensorNetwork> ansatz)
+{
+  clear();
+  dummy_ansatz_.reset();
+  dummy_ansatz_->appendComponent(ansatz,{1.0,0.0});
+  return;
 }
 
 
 void Simulation::resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorExpansion> ansatz)
 {
- clear();
- bra_ansatz_.reset();
- ket_ansatz_.reset();
- ket_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ansatz);
- return;
+  clear();
+  bra_ansatz_.reset();
+  ket_ansatz_.reset();
+  ket_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ansatz);
+  return;
 }
 
 
@@ -65,11 +77,14 @@ void Simulation::markOptimizableTensors(){
 }
 
 bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
- 
+
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   const auto TENS_SHAPE_0INDEX = exatn::TensorShape{};
   const auto TENS_SHAPE_2INDEX = exatn::TensorShape{total_orbitals_, total_orbitals_};
   const auto TENS_SHAPE_4INDEX = exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_};
+
+  auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
+  auto appended = false;
 
   //hamiltonian tensors
   auto h1 = std::make_shared<exatn::Tensor>("H1", TENS_SHAPE_2INDEX);
@@ -84,15 +99,13 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   hamiltonian_.push_back(h2);
   hamiltonian_.push_back(h1);
 
-  auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
-  auto appended = false;
- 
   //(anti)symmetrization 
   auto success = ham->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
   success = ham->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
 
   //marking optimizable tensors
   markOptimizableTensors();
+  std::cout << "check " << std::endl; 
   
   //appending ordering projectors
   appendOrderingProjectors();
@@ -110,7 +123,8 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   // setting up and calling the optimizer in ../src/exatn/..
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
   exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,1e-4);
-  optimizer.resetLearningRate(0.2);
+  optimizer.resetTolerance(1e-5);
+  //optimizer.resetLearningRate(1e-4);
   optimizer.resetMicroIterations(1);
   optimizer.resetDebugLevel(2);
   bool converged = optimizer.optimize();
@@ -181,46 +195,8 @@ void Simulation::constructEnergyDerivatives(){
 
 void Simulation::initWavefunctionAnsatz(){
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
-  for (auto network = ket_ansatz_->cbegin(); network != ket_ansatz_->cend(); ++network){
-    for ( auto tensor_conn = network->network->begin(); tensor_conn != network->network->end(); ++tensor_conn){
-      const auto & tensor = tensor_conn->second;
-      if (tensor.isOptimizable()){
-        auto initialized = exatn::initTensorRnd(tensor.getName()); assert(initialized);
-        /*
-        auto initialized = exatn::initTensorFile(tensor.getName(),"h4_tensor.txt"); assert(initialized);
-        */
-      } 
-    }
-  }
- 
-  // evaluate norm of wavefunction
-  exatn::TensorExpansion bra_ket(*bra_ansatz_,*ket_ansatz_);
-  bra_ket_ = std::make_shared<exatn::TensorExpansion>(bra_ket);
-
-  auto created = exatn::createTensorSync("_InnerProduct", TENS_ELEM_TYPE, exatn::TensorShape{}); assert(created);
-  auto inner_product = exatn::getTensor("_InnerProduct");
-  auto initialized = exatn::initTensor(inner_product->getName(), 0.0); assert(initialized);
-  auto evaluated = exatn::evaluateSync(*bra_ket_,inner_product); assert(evaluated);
-  
-  auto local_copy = exatn::getLocalTensor(inner_product->getName()); assert(local_copy);
-  const  exatn::TensorDataType<TENS_ELEM_TYPE>::value * body_ptr;
-  auto access_granted = local_copy->getDataAccessHostConst(&body_ptr); assert(access_granted);
-  double val = *body_ptr;
-  body_ptr = nullptr;
- 
-  for (auto network = ket_ansatz_->cbegin(); network != ket_ansatz_->cend(); ++network){
-    for ( auto tensor_conn = network->network->begin(); tensor_conn != network->network->end(); ++tensor_conn){
-      const auto & tensor = tensor_conn->second;
-      if (tensor.isOptimizable()){
-        // number of tensors in network less the number of ordering projectors
-        int num_optimizable = network->network->getNumTensors() - (num_particles_-1);
-        double factor = pow(sqrt(1.0/val), 1.0/double(num_optimizable));
-        auto scaled = exatn::scaleTensor(tensor.getName(), factor); assert(scaled);
-      } 
-    }
-  }
-
-  auto destroyed = exatn::destroyTensorSync(inner_product->getName()); assert(destroyed);
+  // normalize wavefunction ansatz
+  auto success = exatn::balanceNormalizeNorm2Sync(*ket_ansatz_,1.0,1.0,true);
 }
 
 
