@@ -573,7 +573,7 @@ int main(int argc, char** argv){
   // set up approximant
   std::shared_ptr<exatn::TensorExpansion> approximant;
   approximant = std::make_shared<exatn::TensorExpansion>();
-  auto network_for_approximant = exatn::makeTensorNetwork("NetworkForApproximant","_ac_approximant(p,q,r,s)=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
+  auto network_for_approximant = exatn::makeTensorNetwork("NetworkForApproximant","_ac_approximant(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
   approximant->appendComponent(network_for_approximant,{1.0,0.0});
   markOptimizableTensors(approximant);
   appendOrderingProjectors(ntp, nto, approximant);
@@ -605,7 +605,7 @@ int main(int argc, char** argv){
   success = exatn::printTensorFileSync("D","tensor_d.txt"); assert(success);
 
   // get only the optimizable tensors in tensor network
-  auto network  = exatn::makeTensorNetwork("Network","_ac(p,q,r,s)=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
+  auto network  = exatn::makeTensorNetwork("Network","_ac(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
   std::shared_ptr<exatn::TensorExpansion> ansatz;
   ansatz = std::make_shared<exatn::TensorExpansion>();
   ansatz->appendComponent(network,{1.0,0.0});
