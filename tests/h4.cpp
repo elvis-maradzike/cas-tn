@@ -604,7 +604,7 @@ int main(int argc, char** argv){
   success = exatn::printTensorFileSync("C","tensor_c.txt"); assert(success);
   success = exatn::printTensorFileSync("D","tensor_d.txt"); assert(success);
 
-  // get only the tensors in tensor network
+  // get only the optimizable tensors in tensor network
   auto network  = exatn::makeTensorNetwork("Network","_ac(p,q,r,s)=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
   std::shared_ptr<exatn::TensorExpansion> ansatz;
   ansatz = std::make_shared<exatn::TensorExpansion>();
@@ -650,10 +650,10 @@ int main(int argc, char** argv){
   std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
 
   // declare object from Simulation class
-  Simulation myObject(nao, nap, nco, nto, ntp);
-  myObject.resetWaveFunctionAnsatz(ansatz);
-  myObject.resetHamiltonian(hamiltonian);
-  myObject.optimize(1,1e-5);
+  Simulation optimizer(nao, nap, nco, nto, ntp);
+  optimizer.resetWaveFunctionAnsatz(ansatz);
+  optimizer.resetHamiltonian(hamiltonian);
+  optimizer.optimize(1,1e-5);
 
   }
 
