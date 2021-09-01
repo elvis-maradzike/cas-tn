@@ -43,9 +43,6 @@ public:
  /** Resets the wavefunction ansatz with the provided tensor network. **/
  void resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorNetwork> ansatz);
 
- /** Resets the dummy ansatz with the provided tensor network. **/
- void resetDummyTensorNetworkExpansion(std::shared_ptr<exatn::TensorNetwork> ansatz);
-
  /** Resets the wavefunction ansatz with the provided tensor network expansion. **/
  void resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorExpansion> ansatz);
 
@@ -99,7 +96,6 @@ protected:
 
  std::shared_ptr<exatn::TensorExpansion> ket_ansatz_;      //wavefunction ansatz ket
  std::shared_ptr<exatn::TensorExpansion> bra_ansatz_;      //wavefunction ansatz bra
- std::shared_ptr<exatn::TensorExpansion> dummy_ansatz_;      //wavefunction ansatz bra
  std::vector<std::shared_ptr<exatn::Tensor>> hamiltonian_; //Hamiltonian tensors
 
  std::size_t num_states_;             //number of the lowest-energy states to find
