@@ -36,14 +36,6 @@ void Simulation::resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorNetwork> a
   return;
 }
 
-void Simulation::resetDummyTensorNetworkExpansion(std::shared_ptr<exatn::TensorNetwork> ansatz)
-{
-  clear();
-  dummy_ansatz_.reset();
-  dummy_ansatz_->appendComponent(ansatz,{1.0,0.0});
-  return;
-}
-
 
 void Simulation::resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorExpansion> ansatz)
 {
@@ -123,8 +115,8 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   // setting up and calling the optimizer in ../src/exatn/..
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
   exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,1e-4);
-  optimizer.resetTolerance(1e-5);
-  //optimizer.resetLearningRate(1e-4);
+  optimizer.resetTolerance(1e-4);
+  optimizer.resetLearningRate(0.5);
   optimizer.resetMicroIterations(1);
   optimizer.resetDebugLevel(2);
   bool converged = optimizer.optimize();
