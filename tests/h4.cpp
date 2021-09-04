@@ -120,7 +120,6 @@ int main(int argc, char** argv){
   // number of tensor networks used in computing initial guess
   unsigned int N = 8;
 
-  std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
  
   // tensors used in generating guess
   auto a1 = std::make_shared<exatn::Tensor>("A1", TENS_SHAPE_A);
@@ -276,9 +275,6 @@ int main(int argc, char** argv){
   
   initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
   initialized = exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
-
-  hamiltonian.push_back(h2);
-  hamiltonian.push_back(h1);
 
   // tensor networks 
   auto network_1 = exatn::makeSharedTensorNetwork(
@@ -474,12 +470,13 @@ int main(int argc, char** argv){
   listOfBraTensorExpansions.push_back(bra_8);
 
   //create hamiltonian operator from one and two-electron integrals
+  std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
+  hamiltonian.push_back(h2);
+  hamiltonian.push_back(h1);
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
-  auto appended = false;
-
   //(anti)symmetrization 
-  success = ham->appendSymmetrizeComponent(h2,{0,1},{2,3}, ntp, ntp, {1.0,0.0},true); assert(success);
-  success = ham->appendSymmetrizeComponent(h1,{0},{1}, ntp, ntp, {1.0,0.0},true); assert(success);
+  success = ham->appendSymmetrizeComponent(hamiltonian[0],{0,1},{2,3}, ntp, ntp, {1.0,0.0},true); assert(success);
+  success = ham->appendSymmetrizeComponent(hamiltonian[1],{0},{1}, ntp, ntp, {1.0,0.0},true); assert(success);
 
   // Hamiltonian matrix in basis of tensor network expansions above
   double h[N*N]; 
@@ -595,9 +592,7 @@ int main(int argc, char** argv){
   ansatz->appendComponent(network,{1.0,0.0});
   markOptimizableTensors(ansatz);
 
-  auto destroyed = exatn::destroyTensorSync(h1->getName()); assert(destroyed);
-  destroyed = exatn::destroyTensorSync(h2->getName()); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("Q"); assert(destroyed);
+  auto destroyed = exatn::destroyTensorSync("Q"); assert(destroyed);
 
   for ( unsigned int i = 1; i < N+1; i++){
     auto destroyed = exatn::destroyTensorSync("A"+std::to_string(i)); assert(destroyed);
