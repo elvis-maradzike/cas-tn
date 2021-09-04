@@ -10,7 +10,8 @@ Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <unordered_set>
-#include "mkl_lapacke.h"
+#include "lapacke.h"
+#include "cblas.h"
 
 namespace castn {
 
@@ -25,8 +26,6 @@ void Simulation::clear()
 
 void Simulation::resetWaveFunctionAnsatz(std::shared_ptr<exatn::TensorNetwork> ansatz)
 {
-  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
-
   clear();
   bra_ansatz_.reset();
   ket_ansatz_.reset();
@@ -70,34 +69,13 @@ void Simulation::markOptimizableTensors(){
 
 bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
 
-  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
-  const auto TENS_SHAPE_0INDEX = exatn::TensorShape{};
-  const auto TENS_SHAPE_2INDEX = exatn::TensorShape{total_orbitals_, total_orbitals_};
-  const auto TENS_SHAPE_4INDEX = exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_};
-
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
-  auto appended = false;
-
-  //hamiltonian tensors
-  auto h1 = std::make_shared<exatn::Tensor>("H1", TENS_SHAPE_2INDEX);
-  auto h2 = std::make_shared<exatn::Tensor>("H2", TENS_SHAPE_4INDEX);
-
-  auto created = exatn::createTensorSync(h1,TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensorSync(h2,TENS_ELEM_TYPE); assert(created);
-  
-  auto initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
-  initialized = exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
-
-  hamiltonian_.push_back(h2);
-  hamiltonian_.push_back(h1);
-
   //(anti)symmetrization 
   auto success = ham->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
   success = ham->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
 
   //marking optimizable tensors
   markOptimizableTensors();
-  std::cout << "check " << std::endl; 
   
   //appending ordering projectors
   appendOrderingProjectors();
@@ -107,7 +85,6 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   bra_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ket_ansatz_);
   bra_ansatz_->rename(ket_ansatz_->getName()+"Bra");
   bra_ansatz_->conjugate();
-  //bra_ansatz_->printIt();
   
   //initializing optimizable tensors
   initWavefunctionAnsatz();
@@ -135,18 +112,19 @@ void Simulation::appendOrderingProjectors(){
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   const auto TENS_SHAPE_2INDEX = exatn::TensorShape{total_orbitals_, total_orbitals_};
   const auto TENS_SHAPE_4INDEX = exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_};
-  // array of elements to initialize tensors that comprise the ordering projectors
-  std::vector<double> tmpData(total_orbitals_*total_orbitals_*total_orbitals_*total_orbitals_,0.0);
+
+// array of elements to initialize tensors that comprise the ordering projectors
+  std::vector<double> orderingProjectorData(total_orbitals_*total_orbitals_*total_orbitals_*total_orbitals_,0.0);
   for ( unsigned int i = 0; i < total_orbitals_; i++){
     for ( unsigned int j = 0; j < total_orbitals_; j++){
       for ( unsigned int k = 0; k < total_orbitals_; k++){
         for ( unsigned int l = 0; l < total_orbitals_; l++){
           if ( i < j){
-          tmpData[i*total_orbitals_*total_orbitals_*total_orbitals_
+          orderingProjectorData[i*total_orbitals_*total_orbitals_*total_orbitals_
                  +j*total_orbitals_*total_orbitals_
                  +k*total_orbitals_+l] = double((i==k)*(j==l));
           }else{
-          tmpData[i*total_orbitals_*total_orbitals_*total_orbitals_
+          orderingProjectorData[i*total_orbitals_*total_orbitals_*total_orbitals_
                  +j*total_orbitals_*total_orbitals_
                  +k*total_orbitals_+l] = 0.0;
           }
@@ -157,8 +135,8 @@ void Simulation::appendOrderingProjectors(){
  
   //create tensors for ordering projectors
   auto created = exatn::createTensor("Q", TENS_ELEM_TYPE, TENS_SHAPE_4INDEX); assert(created);
-  auto initialized = exatn::initTensorData("Q", tmpData); assert(initialized);
-  
+  auto initialized = exatn::initTensorData("Q", orderingProjectorData); assert(initialized);
+
   auto appended = false;
   for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
     auto & network = *(iter->network);
