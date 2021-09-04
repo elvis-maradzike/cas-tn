@@ -2,7 +2,8 @@
 #include "talshxx.hpp"
 #include <iomanip>
 #include "../src/simulation.hpp"
-#include "mkl_lapacke.h"
+#include "cblas.h"
+#include "lapacke.h"
 
 using namespace std::chrono;
 using namespace castn;
@@ -68,7 +69,7 @@ int main(int argc, char** argv){
   std::size_t ntp = 4;
   // wavefunction ansatz parameters
   std::size_t np = nto, nq = nto, nr = nto, ns = nto;
- 
+
   if ( argc != 4){ 
     printf("\n");
     printf("    usage: ./h4.x ni nj nk \n");
@@ -86,6 +87,22 @@ int main(int argc, char** argv){
   std::size_t nj = long2;
   std::size_t nk = long3;
 
+  // array of elements to initialize tensors that comprise the ordering projector
+  std::vector<double> orderingProjectorData(nto*nto*nto*nto,0.0);
+  for ( unsigned int i = 0; i < nto; i++){
+    for ( unsigned int j = 0; j < nto; j++){
+      for ( unsigned int k = 0; k < nto; k++){
+        for ( unsigned int l = 0; l < nto; l++){
+          if ( i < j){
+          orderingProjectorData[i*nto*nto*nto + j*nto*nto + k*nto + l] = double((i==k)*(j==l));
+          }else{
+          orderingProjectorData[i*nto*nto*nto + j*nto*nto + k*nto + l] = 0.0;
+          }
+        }
+      }
+    }
+  }
+
   // tensor shapes  
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   const auto TENS_SHAPE_A = exatn::TensorShape{np,ni};
@@ -94,35 +111,17 @@ int main(int argc, char** argv){
   const auto TENS_SHAPE_D = exatn::TensorShape{nk,ns};
   const auto TENS_SHAPE_ABCD = exatn::TensorShape{np,nq,nr,ns};
   
-  // array of elements to initialize tensors that comprise the ordering projector
-  std::vector<double> tmpData(nto*nto*nto*nto,0.0);
-  for ( unsigned int i = 0; i < nto; i++){
-    for ( unsigned int j = 0; j < nto; j++){
-      for ( unsigned int k = 0; k < nto; k++){
-        for ( unsigned int l = 0; l < nto; l++){
-          if ( i < j){
-          tmpData[i*nto*nto*nto + j*nto*nto + k*nto + l] = double((i==k)*(j==l));
-          }else{
-          tmpData[i*nto*nto*nto + j*nto*nto + k*nto + l] = 0.0;
-          }
-        }
-      }
-    }
-  }
-
   exatn::initialize();
   {
 
+ // exatn::transformTensorSync("InitializeOrderingProjectors",
+ //                            std::shared_ptr<exatn::TensorMethod>{new exatn::numerics::FunctorInitProj()});
+ 
   // number of tensor networks used in computing initial guess
   unsigned int N = 8;
-  
-  // declare tensor network A-B-C-D
-  auto a = std::make_shared<exatn::Tensor>("A", TENS_SHAPE_A );
-  auto b = std::make_shared<exatn::Tensor>("B", TENS_SHAPE_B );
-  auto c = std::make_shared<exatn::Tensor>("C", TENS_SHAPE_C );
-  auto d = std::make_shared<exatn::Tensor>("D", TENS_SHAPE_D );
-  auto abcd = std::make_shared<exatn::Tensor>("ABCD", TENS_SHAPE_ABCD );
-  
+
+  std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
+ 
   // tensors used in generating guess
   auto a1 = std::make_shared<exatn::Tensor>("A1", TENS_SHAPE_A);
   auto b1 = std::make_shared<exatn::Tensor>("B1", TENS_SHAPE_B);
@@ -163,11 +162,7 @@ int main(int argc, char** argv){
   auto b8 = std::make_shared<exatn::Tensor>("B8", TENS_SHAPE_B);
   auto c8 = std::make_shared<exatn::Tensor>("C8", TENS_SHAPE_C);
   auto d8 = std::make_shared<exatn::Tensor>("D8", TENS_SHAPE_D);
-  
-  // one and two-electron integrals
-  auto h1 = std::make_shared<exatn::Tensor>("H1", exatn::TensorShape{nto,nto});
-  auto h2 = std::make_shared<exatn::Tensor>("H2", exatn::TensorShape{nto,nto,nto,nto});
-  
+
   // accumulator tensors for tensor networks used in building guess
   auto ac1 = std::make_shared<exatn::Tensor>("AC1", TENS_SHAPE_ABCD);
   auto ac2 = std::make_shared<exatn::Tensor>("AC2", TENS_SHAPE_ABCD);
@@ -178,9 +173,112 @@ int main(int argc, char** argv){
   auto ac7 = std::make_shared<exatn::Tensor>("AC7", TENS_SHAPE_ABCD);
   auto ac8 = std::make_shared<exatn::Tensor>("AC8", TENS_SHAPE_ABCD);
 
+  // declare tensor network A-B-C-D
+  auto a = exatn::makeSharedTensor("A", TENS_SHAPE_A );
+  auto b = exatn::makeSharedTensor("B", TENS_SHAPE_B );
+  auto c = exatn::makeSharedTensor("C", TENS_SHAPE_C );
+  auto d = exatn::makeSharedTensor("D", TENS_SHAPE_D );
+  auto abcd = exatn::makeSharedTensor("ABCD", TENS_SHAPE_ABCD );
+  
+  // one and two-electron integrals
+  auto h1 = exatn::makeSharedTensor("H1", exatn::TensorShape{nto,nto});
+  auto h2 = exatn::makeSharedTensor("H2", exatn::TensorShape{nto,nto,nto,nto});
+  
   // accumulator for approximant
-  auto ac_approximant = std::make_shared<exatn::Tensor>("_ac_approximant", TENS_SHAPE_ABCD);
-  auto ac = std::make_shared<exatn::Tensor>("_ac", TENS_SHAPE_ABCD);
+  auto ac_approximant = exatn::makeSharedTensor("_ac_approximant", TENS_SHAPE_ABCD);
+  auto ac = exatn::makeSharedTensor("_ac", TENS_SHAPE_ABCD);
+
+  
+ // creating tensors
+  auto created = exatn::createTensor(a1, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b1, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c1, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d1, TENS_ELEM_TYPE); assert(created);
+ 
+  created = exatn::createTensor(a2, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b2, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c2, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d2, TENS_ELEM_TYPE); assert(created);
+ 
+  created = exatn::createTensor(a3, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b3, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c3, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d3, TENS_ELEM_TYPE); assert(created);
+ 
+  created = exatn::createTensor(a4, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b4, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c4, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d4, TENS_ELEM_TYPE); assert(created);
+ 
+  created = exatn::createTensor(a5, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b5, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c5, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d5, TENS_ELEM_TYPE); assert(created);
+
+  created = exatn::createTensor(a6, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b6, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c6, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d6, TENS_ELEM_TYPE); assert(created);
+
+  created = exatn::createTensor(a7, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b7, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c7, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d7, TENS_ELEM_TYPE); assert(created);
+
+  created = exatn::createTensor(a8, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b8, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c8, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d8, TENS_ELEM_TYPE); assert(created);
+ 
+  created = exatn::createTensor(a, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(b, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(c, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(d, TENS_ELEM_TYPE); assert(created);
+
+  created = exatn::createTensor(abcd, TENS_ELEM_TYPE); assert(created);
+  
+  created = exatn::createTensorSync(h1,TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensorSync(h2,TENS_ELEM_TYPE); assert(created);
+
+  created = exatn::createTensor(ac1, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac2, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac3, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac4, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac5, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac6, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac7, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac8, TENS_ELEM_TYPE); assert(created);
+
+  created = exatn::createTensor(ac_approximant, TENS_ELEM_TYPE); assert(created);
+  created = exatn::createTensor(ac, TENS_ELEM_TYPE); assert(created);
+
+  //creating and initializing tensor for ordering projectors
+  created = exatn::createTensor("Q", TENS_ELEM_TYPE, exatn::TensorShape{nto,nto,nto,nto}); assert(created);
+
+
+  // initializing tensors
+  auto initialized = exatn::initTensorRndSync("A"); assert(initialized);
+  initialized = exatn::initTensorRndSync("B"); assert(initialized);
+  initialized = exatn::initTensorRndSync("C"); assert(initialized);
+  initialized = exatn::initTensorRndSync("D"); assert(initialized);
+  initialized = exatn::initTensorRndSync("ABCD"); assert(initialized);
+ 
+  for ( unsigned int i = 1; i < N+1; i++){ 
+    auto initialized = exatn::initTensorRndSync("A"+std::to_string(i)); assert(initialized);
+    initialized = exatn::initTensorRndSync("B"+std::to_string(i)); assert(initialized);
+    initialized = exatn::initTensorRndSync("C"+std::to_string(i)); assert(initialized);
+    initialized = exatn::initTensorRndSync("D"+std::to_string(i)); assert(initialized);
+  //  initialized = exatn::initTensorRnd("AC"+std::to_string(i)); assert(initialized);
+  }
+  // Initialize ordering projectors
+  //auto success = exatn::transformTensor("Q","InitializeOrderingProjectors"); assert(success);
+  initialized = exatn::initTensorData("Q", orderingProjectorData); assert(initialized);
+  
+  initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
+  initialized = exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
+
+  hamiltonian.push_back(h2);
+  hamiltonian.push_back(h1);
 
   // tensor networks 
   auto network_1 = exatn::makeSharedTensorNetwork(
@@ -271,119 +369,6 @@ int main(int argc, char** argv){
                   {d8->getName(),d8}
                  }
                 );
-  
- // creating tensors
-  auto created = exatn::createTensor(a1, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b1, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c1, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d1, TENS_ELEM_TYPE); assert(created);
- 
-  created = exatn::createTensor(a2, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b2, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c2, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d2, TENS_ELEM_TYPE); assert(created);
- 
-  created = exatn::createTensor(a3, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b3, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c3, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d3, TENS_ELEM_TYPE); assert(created);
- 
-  created = exatn::createTensor(a4, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b4, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c4, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d4, TENS_ELEM_TYPE); assert(created);
- 
-  created = exatn::createTensor(a5, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b5, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c5, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d5, TENS_ELEM_TYPE); assert(created);
-
-  created = exatn::createTensor(a6, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b6, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c6, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d6, TENS_ELEM_TYPE); assert(created);
-
-  created = exatn::createTensor(a7, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b7, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c7, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d7, TENS_ELEM_TYPE); assert(created);
-
-  created = exatn::createTensor(a8, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b8, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c8, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d8, TENS_ELEM_TYPE); assert(created);
- 
-  created = exatn::createTensor(a, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(b, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(c, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(d, TENS_ELEM_TYPE); assert(created);
-
-  created = exatn::createTensor(abcd, TENS_ELEM_TYPE); assert(created);
-  
-  created = exatn::createTensorSync(h1,TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensorSync(h2,TENS_ELEM_TYPE); assert(created);
-
-  created = exatn::createTensor(ac1, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac2, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac3, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac4, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac5, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac6, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac7, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac8, TENS_ELEM_TYPE); assert(created);
-
-  created = exatn::createTensor(ac_approximant, TENS_ELEM_TYPE); assert(created);
-  created = exatn::createTensor(ac, TENS_ELEM_TYPE); assert(created);
-
-  // initializing tensors
-  auto initialized = exatn::initTensorRnd("A"); assert(initialized);
-  initialized = exatn::initTensorRnd("B"); assert(initialized);
-  initialized = exatn::initTensorRnd("C"); assert(initialized);
-  initialized = exatn::initTensorRnd("D"); assert(initialized);
-  
-  initialized = exatn::initTensorRnd("A1"); assert(initialized);
-  initialized = exatn::initTensorRnd("B1"); assert(initialized);
-  initialized = exatn::initTensorRnd("C1"); assert(initialized);
-  initialized = exatn::initTensorRnd("D1"); assert(initialized);
-  initialized = exatn::initTensorRnd("A2"); assert(initialized);
-  initialized = exatn::initTensorRnd("B2"); assert(initialized);
-  initialized = exatn::initTensorRnd("C2"); assert(initialized);
-  initialized = exatn::initTensorRnd("D2"); assert(initialized);
-  initialized = exatn::initTensorRnd("A3"); assert(initialized);
-  initialized = exatn::initTensorRnd("B3"); assert(initialized);
-  initialized = exatn::initTensorRnd("C3"); assert(initialized);
-  initialized = exatn::initTensorRnd("D3"); assert(initialized);
-  initialized = exatn::initTensorRnd("A4"); assert(initialized);
-  initialized = exatn::initTensorRnd("B4"); assert(initialized);
-  initialized = exatn::initTensorRnd("C4"); assert(initialized);
-  initialized = exatn::initTensorRnd("D4"); assert(initialized);
-  initialized = exatn::initTensorRnd("A5"); assert(initialized);
-  initialized = exatn::initTensorRnd("B5"); assert(initialized);
-  initialized = exatn::initTensorRnd("C5"); assert(initialized);
-  initialized = exatn::initTensorRnd("D5"); assert(initialized);
-  initialized = exatn::initTensorRnd("A6"); assert(initialized);
-  initialized = exatn::initTensorRnd("B6"); assert(initialized);
-  initialized = exatn::initTensorRnd("C6"); assert(initialized);
-  initialized = exatn::initTensorRnd("D6"); assert(initialized);
-  initialized = exatn::initTensorRnd("A7"); assert(initialized);
-  initialized = exatn::initTensorRnd("B7"); assert(initialized);
-  initialized = exatn::initTensorRnd("C7"); assert(initialized);
-  initialized = exatn::initTensorRnd("D7"); assert(initialized);
-  initialized = exatn::initTensorRnd("A8"); assert(initialized);
-  initialized = exatn::initTensorRnd("B8"); assert(initialized);
-  initialized = exatn::initTensorRnd("C8"); assert(initialized);
-  initialized = exatn::initTensorRnd("D8"); assert(initialized);
-
-  initialized = exatn::initTensorRnd("ABCD"); assert(initialized);
-
-  initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
-  initialized = exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
-
-  //creating and initializing tensor for ordering projectors
-  created = exatn::createTensor("Q", TENS_ELEM_TYPE, exatn::TensorShape{nto,nto,nto,nto}); assert(created);
-  initialized = exatn::initTensorData("Q", tmpData); assert(initialized);
-
-  
   // mark as optimizable tensors in tensor networks
   markOptimizableTensors(network_1);
   markOptimizableTensors(network_2);
@@ -497,11 +482,11 @@ int main(int argc, char** argv){
   success = ham->appendSymmetrizeComponent(h1,{0},{1}, ntp, ntp, {1.0,0.0},true); assert(success);
 
   // Hamiltonian matrix in basis of tensor network expansions above
-  double H[N*N]; 
+  double h[N*N]; 
   //overlap matrix
-  double S[N*N];
+  double s[N*N];
   
-  /* H_ij = < ket_i| h | ket_j> and S_ij = < ket_i| ket_j> */
+  /* H_ij = < ket_i| h | ket_j> and S_ij = < bra_i| ket_j> */
   for ( unsigned int i = 0; i < listOfBraTensorExpansions.size(); i++){
     for ( unsigned int j = 0; j < listOfKetTensorExpansions.size(); j++){
 
@@ -513,18 +498,19 @@ int main(int argc, char** argv){
       auto ac_overlap = exatn::getTensor("_ac_overlap");
   
       auto initialized = exatn::initTensor(ac_ham->getName(), 0.0); assert(initialized);
-      initialized = exatn::initTensor(ac_ham->getName(), 0.0); assert(initialized);
       auto evaluated = exatn::evaluateSync(hamiltonianMatrixElement,ac_ham); assert(evaluated);
-      evaluated = exatn::evaluateSync(overlapMatrixElement,ac_overlap); assert(evaluated);
       auto local_copy = exatn::getLocalTensor(ac_ham->getName());
       const exatn::TensorDataType<TENS_ELEM_TYPE>::value * body_ptr;
       auto access_granted = local_copy->getDataAccessHostConst(&body_ptr); assert(access_granted);
-      H[i*8+j] =  *body_ptr;
+      h[i*8+j] =  *body_ptr;
       body_ptr = nullptr;
 
+      initialized = exatn::initTensor(ac_overlap->getName(), 0.0); assert(initialized);
+      evaluated = exatn::evaluateSync(overlapMatrixElement,ac_overlap); assert(evaluated);
       local_copy = exatn::getLocalTensor(ac_overlap->getName());
       access_granted = local_copy->getDataAccessHostConst(&body_ptr); assert(access_granted);
-      S[i*8+j] =  *body_ptr;
+      s[i*8+j] =  *body_ptr;
+      body_ptr = nullptr;
 
       auto destroyed = exatn::destroyTensorSync(ac_ham->getName()); assert(destroyed);
       destroyed = exatn::destroyTensorSync(ac_overlap->getName()); assert(destroyed);
@@ -534,21 +520,24 @@ int main(int argc, char** argv){
   std::cout << "Print out Hamiltonian matrix..." << std::endl;
   for ( unsigned int i = 0; i < listOfBraTensorExpansions.size(); i++){
     for ( unsigned int j = 0; j < listOfKetTensorExpansions.size(); j++){
-      printf("%6.6lf  ", H[i*8+j]);
+      printf("%6.6lf  ", h[i*8+j]);
     }
     printf("\n");
   }
   std::cout << "Print out overlap matrix..." << std::endl;
   for ( unsigned int i = 0; i < listOfBraTensorExpansions.size(); i++){
     for ( unsigned int j = 0; j < listOfKetTensorExpansions.size(); j++){
-      printf("%6.6lf  ", S[i*8+j]);
+      printf("%6.6lf  ", s[i*8+j]);
     }
     printf("\n");
   }
     
-  MKL_INT n = N, lda = N, ldb = N, info;
+  char jobz, uplo;
+  lapack_int n = N, lda = N, ldb = N, info;
   double w[N];
-  info = LAPACKE_dsygv (LAPACK_ROW_MAJOR, 1, 'V', 'U', n, H, lda, S, ldb, w);
+  jobz = 'V';
+  uplo = 'U';
+  info = LAPACKE_dsygv(LAPACK_ROW_MAJOR, 1, jobz, uplo, n, h, lda, s, ldb, w);
   if( info > 0 ) {
     printf( "The algorithm failed to compute eigenvalues.\n" );
     exit( 1 );
@@ -561,14 +550,14 @@ int main(int argc, char** argv){
   // build target
   std::shared_ptr<exatn::TensorExpansion> target;
   target = std::make_shared<exatn::TensorExpansion>();
-  target->appendComponent(network_1,{H[0],0.0});
-  target->appendComponent(network_2,{H[8],0.0});
-  target->appendComponent(network_3,{H[16],0.0});
-  target->appendComponent(network_4,{H[24],0.0});
-  target->appendComponent(network_5,{H[32],0.0});
-  target->appendComponent(network_6,{H[40],0.0});
-  target->appendComponent(network_7,{H[48],0.0});
-  target->appendComponent(network_8,{H[56],0.0});
+  target->appendComponent(network_1,{h[0],0.0});
+  target->appendComponent(network_2,{h[8],0.0});
+  target->appendComponent(network_3,{h[16],0.0});
+  target->appendComponent(network_4,{h[24],0.0});
+  target->appendComponent(network_5,{h[32],0.0});
+  target->appendComponent(network_6,{h[40],0.0});
+  target->appendComponent(network_7,{h[48],0.0});
+  target->appendComponent(network_8,{h[56],0.0});
 
   // set up approximant
   std::shared_ptr<exatn::TensorExpansion> approximant;
@@ -599,11 +588,6 @@ int main(int argc, char** argv){
   std::cout << "Reconstruction failed!" << std::endl; assert(false);
  }
 
-  success = exatn::printTensorFileSync("A","tensor_a.txt"); assert(success);
-  success = exatn::printTensorFileSync("B","tensor_b.txt"); assert(success);
-  success = exatn::printTensorFileSync("C","tensor_c.txt"); assert(success);
-  success = exatn::printTensorFileSync("D","tensor_d.txt"); assert(success);
-
   // get only the optimizable tensors in tensor network
   auto network  = exatn::makeTensorNetwork("Network","_ac(p,q,r,s)+=A(p,i)*B(i,q,j)*C(j,r,k)*D(k,s)");
   std::shared_ptr<exatn::TensorExpansion> ansatz;
@@ -614,41 +598,15 @@ int main(int argc, char** argv){
   auto destroyed = exatn::destroyTensorSync(h1->getName()); assert(destroyed);
   destroyed = exatn::destroyTensorSync(h2->getName()); assert(destroyed);
   destroyed = exatn::destroyTensorSync("Q"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A1"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B1"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C1"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D1"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A2"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B2"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C2"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D2"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A3"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B3"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C3"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D3"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A4"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B4"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C4"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D4"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A5"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B5"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C5"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D5"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A6"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B6"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C6"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D6"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A7"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B7"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C7"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D7"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("A8"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("B8"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("C8"); assert(destroyed);
-  destroyed = exatn::destroyTensorSync("D8"); assert(destroyed);
 
-  std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
+  for ( unsigned int i = 1; i < N+1; i++){
+    auto destroyed = exatn::destroyTensorSync("A"+std::to_string(i)); assert(destroyed);
+    destroyed = exatn::destroyTensorSync("B"+std::to_string(i)); assert(destroyed);
+    destroyed = exatn::destroyTensorSync("C"+std::to_string(i)); assert(destroyed);
+    destroyed = exatn::destroyTensorSync("D"+std::to_string(i)); assert(destroyed);
+  }
 
+  
   // declare object from Simulation class
   Simulation optimizer(nao, nap, nco, nto, ntp);
   optimizer.resetWaveFunctionAnsatz(ansatz);
