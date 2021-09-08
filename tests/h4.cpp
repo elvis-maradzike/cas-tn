@@ -1,7 +1,7 @@
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
-#include "../../src/simulation.hpp"
+#include "../src/simulation.hpp"
 #include "cblas.h"
 #include "lapacke.h"
 
