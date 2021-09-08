@@ -8,18 +8,6 @@
 using namespace std::chrono;
 using namespace castn;
 
-/* marks as optimizable all tensors that comprise a specified tensor network expansion */
-void markOptimizableTensors(std::shared_ptr<exatn::TensorExpansion> ansatz){
-  for (auto component = ansatz->begin(); component != ansatz->end(); ++component){
-    component->network->markOptimizableAllTensors();
-  }
-}
-
-/* marks as optimizable all tensors that comprise a specified tensor network */
-void markOptimizableTensors(std::shared_ptr<exatn::TensorNetwork> ansatz){
-  ansatz->markOptimizableAllTensors();
-}
-
 int main(int argc, char** argv){
 
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
@@ -38,7 +26,7 @@ int main(int argc, char** argv){
   // builder for mps
   auto builder = exatn::getTensorNetworkBuilder("MPS");
   auto success = builder->setParameter("max_bond_dim", 64); assert(success);
-  auto ansatz_net = exatn::makeSharedTensorNetwork("KetAnsatz", output_tensor, *builder);
+  auto ansatz_net = exatn::makeSharedTensorNetwork("AnsatzNetwork", output_tensor, *builder);
   ansatz_net->printIt();
 
   //Allocate/initialize tensors in the tensor network ansatz:
