@@ -91,8 +91,7 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
 
   // setting up and calling the optimizer in ../src/exatn/..
   exatn::TensorNetworkOptimizer::resetDebugLevel(1);
-  exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,1e-4);
-  optimizer.resetTolerance(1e-4);
+  exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,convergence_thresh_);
   optimizer.resetLearningRate(0.5);
   optimizer.resetMicroIterations(1);
   optimizer.resetDebugLevel(2);
@@ -110,50 +109,25 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
 /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
 void Simulation::appendOrderingProjectors(){
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
-  const auto TENS_SHAPE_2INDEX = exatn::TensorShape{total_orbitals_, total_orbitals_};
-  const auto TENS_SHAPE_4INDEX = exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_};
-
-// array of elements to initialize tensors that comprise the ordering projectors
-  std::vector<double> orderingProjectorData(total_orbitals_*total_orbitals_*total_orbitals_*total_orbitals_,0.0);
-  for ( unsigned int i = 0; i < total_orbitals_; i++){
-    for ( unsigned int j = 0; j < total_orbitals_; j++){
-      for ( unsigned int k = 0; k < total_orbitals_; k++){
-        for ( unsigned int l = 0; l < total_orbitals_; l++){
-          if ( i < j){
-          orderingProjectorData[i*total_orbitals_*total_orbitals_*total_orbitals_
-                 +j*total_orbitals_*total_orbitals_
-                 +k*total_orbitals_+l] = double((i==k)*(j==l));
-          }else{
-          orderingProjectorData[i*total_orbitals_*total_orbitals_*total_orbitals_
-                 +j*total_orbitals_*total_orbitals_
-                 +k*total_orbitals_+l] = 0.0;
-          }
-        }
-      }
-    }
-  }
- 
-  //create tensors for ordering projectors
-  auto created = exatn::createTensor("Q", TENS_ELEM_TYPE, TENS_SHAPE_4INDEX); assert(created);
-  auto initialized = exatn::initTensorData("Q", orderingProjectorData); assert(initialized);
+  auto created = exatn::createTensor("Q",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  exatn::transformTensorSync("Q", std::shared_ptr<exatn::TensorMethod>{new exatn::numerics::FunctorInitProj()});
 
   auto appended = false;
   for (auto iter = (*ket_ansatz_).begin(); iter != (*ket_ansatz_).end(); ++iter){
     auto & network = *(iter->network);
-    unsigned int tensorCounter = 1 + network.getNumTensors();
+    unsigned int tensorIdCounter = 1 + network.getNumTensors();
     // applying layer 1
     for ( unsigned int i = 0; i < num_particles_-1; i=i+2){
-      appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q"),{i,i+1}); assert(appended);
-      tensorCounter++;
+      appended = network.appendTensorGate(tensorIdCounter, exatn::getTensor("Q"),{i,i+1}); assert(appended);
+      tensorIdCounter++;
     }
     // applying layer 2
     for ( unsigned int i = 1; i < num_particles_-1; i=i+2){
-      appended = network.appendTensorGate(tensorCounter, exatn::getTensor("Q"),{i,i+1}); assert(appended);
-      tensorCounter++;
+      appended = network.appendTensorGate(tensorIdCounter, exatn::getTensor("Q"),{i,i+1}); assert(appended);
+      tensorIdCounter++;
     }
   }
-
-  //ket_ansatz_->printIt();
+  
 }
 
 

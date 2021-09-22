@@ -101,29 +101,6 @@ protected:
  std::size_t num_states_;             //number of the lowest-energy states to find
  std::vector<double> state_energies_; //quantum state energies
  double convergence_thresh_;          //tensor convergence threshold (for maxabs)
- std::shared_ptr<exatn::TensorExpansion> functional_; //energy trace functional
- std::shared_ptr<exatn::TensorExpansion> bra_ket_;       // inner product
-
- std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H|x>)
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|x>)
-                        std::shared_ptr<exatn::TensorExpansion>, // hessian tensor expansion (<x|H|x>)
-                        std::shared_ptr<exatn::TensorExpansion>, // hessian tensor expansion (<x|S|x>)
-                        std::shared_ptr<exatn::Tensor>,          // derivative tensor (<x|H|x>)
-                        std::shared_ptr<exatn::Tensor>,          // derivative tensor (<x|S|x>)
-                        std::shared_ptr<exatn::Tensor>,          // hessian tensor (<x'|H|x'>)
-                        std::shared_ptr<exatn::Tensor>           // hessian tensor (<x'|S|x'>)
-                       >> derivatives_;                          // derivatives of the energy functional
-
-
- struct Environment{
- std::shared_ptr<exatn::Tensor> tensor;                // tensor being optimized
- std::shared_ptr<exatn::Tensor> gradient;              // deriv(<x|H|x) - *E deriv(<x|S|x>
- std::shared_ptr<exatn::TensorExpansion> gradient_expansion;            // tensor network expansion: deriv(<x|H|x>) - E*deriv(<x|S|x>
- std::shared_ptr<exatn::TensorExpansion> hessian_expansion;             // tensor network expansion: <x'|H|x'> - 
- };
-
- std::vector<Environment> environments_;
 
 };
 
