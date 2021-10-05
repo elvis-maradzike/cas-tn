@@ -2,8 +2,6 @@
 #include "talshxx.hpp"
 #include <iomanip>
 #include "../src/simulation.hpp"
-#include "cblas.h"
-#include "lapacke.h"
 
 using namespace std::chrono;
 using namespace castn;
@@ -12,10 +10,10 @@ int main(int argc, char** argv){
 
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
   
-  // active orbitals, active particles, core orbitals, total particles
+  // active orbitals, active particles, core orbitals, total orbitals, total particles
   std::size_t nao = 8, nap = 4, nco = 0, nto = 8, ntp = 4;
   
-  // wavefunction ansatz parameters
+  // dimension extents of output tensor
   const exatn::DimExtent np = nto, nq = nto, nr = nto, ns = nto;
 
   exatn::initialize();
@@ -45,20 +43,22 @@ int main(int argc, char** argv){
   auto created = exatn::createTensorSync(h1,TENS_ELEM_TYPE); assert(created);
   created = exatn::createTensorSync(h2,TENS_ELEM_TYPE); assert(created);
 
-  // initializing tensors for one and two-electron integrals
+  // initialize tensors for one and two-electron integrals
   auto initialized = exatn::initTensorFile(h1->getName(),"oei.txt"); assert(initialized);
   initialized = exatn::initTensorFile(h2->getName(),"tei.txt"); assert(initialized);
 
- //create hamiltonian operator from one and two-electron integrals
+  // create vector of tensors, containing one and two-electron integrals
   std::vector<std::shared_ptr<exatn::Tensor> > hamiltonian;
   hamiltonian.push_back(h2);
   hamiltonian.push_back(h1);
  
+  // declare and create tensor expansion (wavefunction ansatz)  
   std::shared_ptr<exatn::TensorExpansion> ansatz;
   ansatz = std::make_shared<exatn::TensorExpansion>();
   ansatz->appendComponent(ansatz_net,{1.0,0.0});
 
   double convergence_thresh = 1e-5;
+
   // declare object from Simulation class
   Simulation optimizer(nao, nap, nco, nto, ntp);
   optimizer.resetWaveFunctionAnsatz(ansatz);
