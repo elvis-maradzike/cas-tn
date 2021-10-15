@@ -1,0 +1,15 @@
+#!/bin/bash
+#BSUB -P PHY149
+#BSUB -nnodes 96
+#BSUB -W 2:00
+#BSUB -o h8_stdout.%J
+#BSUB -J h8
+#BSUB -q debug
+#BSUB -e h8_stderr.%J
+
+export OMP_PLACES=cores
+export OMP_DYNAMIC=false
+export OMP_NUM_THREADS=21
+
+jsrun -n576 -r6 -a1 -c7 -g1 -brs ./h8.x > h8.out
+
