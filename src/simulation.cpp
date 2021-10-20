@@ -10,8 +10,6 @@ Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <unordered_set>
-#include "lapacke.h"
-#include "cblas.h"
 
 namespace castn {
 
@@ -79,28 +77,23 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   
   //appending ordering projectors
   appendOrderingProjectors();
- 
-  ket_ansatz_->rename("VectorExpansion"); 
-  //bra ansatz
-  bra_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ket_ansatz_);
-  bra_ansatz_->rename(ket_ansatz_->getName()+"Bra");
-  bra_ansatz_->conjugate();
-  
+
   //initializing optimizable tensors
   initWavefunctionAnsatz();
 
   // setting up and calling the optimizer in ../src/exatn/..
-  exatn::TensorNetworkOptimizer::resetDebugLevel(1);
+  exatn::TensorNetworkOptimizer::resetDebugLevel(2);
   exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,convergence_thresh_);
+  optimizer.enableParallelization(true);
   optimizer.resetLearningRate(0.5);
-  optimizer.resetMicroIterations(1);
+  optimizer.resetMaxIterations(2);
   optimizer.resetDebugLevel(2);
   bool converged = optimizer.optimize();
   success = exatn::sync(); assert(success);
   if(converged){
    std::cout << "Optimization succeeded!" << std::endl;
   }else{
-   std::cout << "Optimization failed!" << std::endl; assert(false);
+   std::cout << "Optimization failed!" << std::endl;
   }
 
   return true;
