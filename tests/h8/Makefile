@@ -1,16 +1,14 @@
-TOPDIR = 
-CXX    = 
-RM     = rm
-CXXFLAGS = -g `$(TOPDIR)/.exatn/bin/exatn-config --cxxflags` `$(TOPDIR)/.exatn/bin/exatn-config --includes`
-LFLAGS = -g `$(TOPDIR)/.exatn/bin/exatn-config --libs` -lm
-TEST_INPUT_DIR=
-CAS_TN_OBJECT_DIR=
+export EXATN_DIR ?= EXATN_DIR
+CXX = g++
+RM = rm
+CXXFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --cxxflags` `$(EXATN_DIR)/bin/exatn-config --includes`
+LFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --libs` -lm
 
-h8.x: h8.o $(CAS_TN_OBJECT_DIR)/simulation.o
-	$(CXX) $(CXXFLAGS) h8.o $(CAS_TN_OBJECT_DIR)/simulation.o -o h8.x $(LFLAGS)
+h8.x: h8.o ../../simulation.o
+	$(CXX) $(CXXFLAGS) h8.o ../../simulation.o -o h8.x $(LFLAGS)
 
-h8.o: $(TEST_INPUT_DIR)/h8.cpp
-	$(CXX) $(CXXFLAGS) -c $(TEST_INPUT_DIR)/h8.cpp
+h8.o: h8.cpp
+	$(CXX) $(CXXFLAGS) -c h8.cpp
 
 clean: 
 	$(RM) *.o *.x 

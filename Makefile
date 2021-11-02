@@ -1,12 +1,11 @@
-TOPDIR  =  
-CXX      =   
-CXXFLAGS  =  -g `$(TOPDIR)/.exatn/bin/exatn-config --cxxflags` `$(TOPDIR)/.exatn/bin/exatn-config --includes` 
-LFLAGS  =  -g `$(TOPDIR)/.exatn/bin/exatn-config --libs` -lm
-SRC_DIR =  
+CXX = g++
+RM = rm
+EXATN_DIR = 
+CXXFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --cxxflags` `$(EXATN_DIR)/bin/exatn-config --includes`
+LFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --libs` -lm
 
-simulation.o: $(SRC_DIR)/simulation.cpp $(SRC_DIR)/simulation.hpp
-	$(CXX) $(CXXFLAGS) -c $(SRC_DIR)/simulation.cpp
+simulation.o: ./src/simulation.cpp ./src/simulation.hpp
+	$(CXX) $(CXXFLAGS) -c ./src/simulation.cpp
 
-clean: 
-	rm -f simulation.o
-
+clean:
+	$(RM) *.o
