@@ -20,8 +20,8 @@ Then: make
 This compiles the CAS-TN source code and 
 generates an object files (simulation.o)
 
-Then: make -C ./tests/h4/h4.cpp and/or  
-make -C ./tests/h8/h8.cpp 
+Then: make -C ./tests/h4 and/or  
+make -C ./tests/h8
 
 This compiles source code defining the input (tensor network ansatzes)
 for a system of 4 electrons (H\_4) and another of eight electrons (H\_8),
