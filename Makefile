@@ -1,6 +1,5 @@
 CXX = g++
 RM = rm
-EXATN_DIR = 
 CXXFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --cxxflags` `$(EXATN_DIR)/bin/exatn-config --includes`
 LFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --libs` -lm
 
