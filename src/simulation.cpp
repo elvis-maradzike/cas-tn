@@ -1,5 +1,5 @@
 /** Complete-Active-Space Tensor-Network (CAS-TN) Simulation
-REVISION: 2021/01/08
+REVISION: 2021/12/08
 
 Copyright (C) 2020-2021 Dmitry I. Lyakh (Liakh), Elvis Maradzike
 Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
@@ -68,13 +68,13 @@ void Simulation::markOptimizableTensors(){
 bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
 
   auto ham = exatn::makeSharedTensorOperator("Hamiltonian");
-  //(anti)symmetrization 
+  //(anti)symmetrization
   auto success = ham->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
   success = ham->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
 
   //marking optimizable tensors
   markOptimizableTensors();
-  
+
   //appending ordering projectors
   appendOrderingProjectors();
 
@@ -82,21 +82,23 @@ bool Simulation::optimize(std::size_t num_states, double convergence_thresh){
   initWavefunctionAnsatz();
 
   // setting up and calling the optimizer in ../src/exatn/..
-  exatn::TensorNetworkOptimizer::resetDebugLevel(2);
+  exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
   exatn::TensorNetworkOptimizer optimizer(ham,ket_ansatz_,convergence_thresh_);
   optimizer.enableParallelization(true);
   optimizer.resetLearningRate(0.5);
-  optimizer.resetMaxIterations(2);
-  optimizer.resetDebugLevel(2);
+  //optimizer.resetMaxIterations(2);
   bool converged = optimizer.optimize();
   success = exatn::sync(); assert(success);
-  if(converged){
-   std::cout << "Optimization succeeded!" << std::endl;
-  }else{
-   std::cout << "Optimization failed!" << std::endl;
+  success = converged;
+  if(exatn::getProcessRank() == 0){
+   if(converged){
+    std::cout << "Optimization succeeded!" << std::endl;
+   }else{
+    std::cout << "Optimization failed!" << std::endl;
+   }
   }
 
-  return true;
+  return success;
 }
 
 /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
@@ -120,7 +122,6 @@ void Simulation::appendOrderingProjectors(){
       tensorIdCounter++;
     }
   }
-  
 }
 
 
@@ -144,8 +145,8 @@ double Simulation::evaluateEnergyFunctional(){
 
 void Simulation::evaluateEnergyDerivatives(){
 }
-  
+
 void Simulation::updateWavefunctionAnsatzTensors(){
 }
- 
+
 } //namespace castn
