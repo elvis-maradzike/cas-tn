@@ -1,3 +1,6 @@
+#ifdef MPI_ENABLED
+#include "mpi.h"
+#endif
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
@@ -6,8 +9,20 @@
 using namespace std::chrono;
 using namespace castn;
 
-
 int main(int argc, char** argv){
+
+  exatn::ParamConf exatn_parameters;
+  exatn_parameters.setParameter("host_memory_buffer_size",48L*1024L*1024L*1024L);
+
+#ifdef MPI_ENABLED
+  int thread_provided;
+  int mpi_error = MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &thread_provided);
+  assert(mpi_error == MPI_SUCCESS);
+  assert(thread_provided == MPI_THREAD_MULTIPLE);
+  exatn::initialize(exatn::MPICommProxy(MPI_COMM_WORLD), exatn_parameters, "lazy-dag-executor");
+#else
+  exatn::initialize(exatn_parameters, "lazy-dag-executor");
+#endif
 
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   const int num_spin_sites = 8;
@@ -26,7 +41,7 @@ int main(int argc, char** argv){
   {
 
     //Read the MCVQE Hamiltonian in spin representation:
-    auto hamiltonian0 = exatn::quantum::readSpinHamiltonian("MCVQEHamiltonian","h_transformed.txt",TENS_ELEM_TYPE,"QCWare");
+    auto hamiltonian0 = exatn::quantum::readSpinHamiltonian("MCVQEHamiltonian","tmp.txt",TENS_ELEM_TYPE,"QCWare");
 
     hamiltonian0->printIt();
     
@@ -89,6 +104,11 @@ int main(int argc, char** argv){
 
   exatn::finalize();
 
+#ifdef MPI_ENABLED
+  mpi_error = MPI_Finalize();
+  assert(mpi_error == MPI_SUCCESS);
+#endif
+  
   return 0;
 
 }
