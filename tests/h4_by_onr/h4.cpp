@@ -11,13 +11,15 @@ int main(int argc, char** argv){
 
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   const int num_spin_sites = 8;
-  const int bond_dim_lim = 16;
+  const int bond_dim_lim = 4;
   const int max_bond_dim = std::min(static_cast<int>(std::pow(2,num_spin_sites/2)),bond_dim_lim);
   const int arity = 2;
   const std::string tn_type = "TTN";
+  const unsigned int num_states = 3;
   const double accuracy = 1e-4;
 
   bool success = true;
+  bool root = (exatn::getProcessRank() == 0);
 
   exatn::initialize();
 
@@ -51,34 +53,36 @@ int main(int argc, char** argv){
     vec_net2->markOptimizableAllTensors();
     auto vec_tns2 = exatn::makeSharedTensorExpansion("VectorTNS3",vec_net2,std::complex<double>{1.0,0.0});
 
-    //Create and initialize tensor network vector tensors:
-    std::cout << "Creating and initializing tensor network vector tensors ... ";
+    // Create and initialize tensor network vector tensors:
+    if(root) std::cout << "Creating and initializing tensor network vector tensors ... ";
     success = exatn::createTensorsSync(*vec_net0,TENS_ELEM_TYPE); assert(success);
     success = exatn::initTensorsRndSync(*vec_net0); assert(success);
     success = exatn::createTensorsSync(*vec_net1,TENS_ELEM_TYPE); assert(success);
     success = exatn::initTensorsRndSync(*vec_net1); assert(success);
     success = exatn::createTensorsSync(*vec_net2,TENS_ELEM_TYPE); assert(success);
     success = exatn::initTensorsRndSync(*vec_net2); assert(success);
-    std::cout << "Ok" << std::endl;
-  
+    if(root) std::cout << "Ok" << std::endl;
+
     //Ground and three excited states in one call:
-    std::cout << "Ground and three excited states search for the original Hamiltonian:" << std::endl;
+    if(root) std::cout << "Ground and excited states search for the original Hamiltonian:" << std::endl;
     exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
     vec_net0->markOptimizableAllTensors();
-    success = exatn::initTensorsRndSync(*vec_net0); assert(success);
+    success = exatn::initTensorsRndSync(*vec_tns0); assert(success);
     exatn::TensorNetworkOptimizer optimizer3(hamiltonian0,vec_tns0,accuracy);
+    optimizer3.enableParallelization(true);
     success = exatn::sync(); assert(success);
-    bool converged = optimizer3.optimize();
+    bool converged = optimizer3.optimize(num_states);
     success = exatn::sync(); assert(success);
-    if(exatn::getProcessRank() == 0){
-      if(converged){
+    if(converged){
+      if(root){
         std::cout << "Search succeeded:" << std::endl;
-        //for(unsigned int root_id = 0; root_id < 4; ++root_id){
-        // std::cout << "Expectation value " << root_id << " = "
-        //           << optimizer3.getExpectationValue(root_id) << std::endl;
+        for(unsigned int root_id = 0; root_id < num_states; ++root_id){
+          std::cout << "Expectation value " << root_id << " = "
+                 << optimizer3.getExpectationValue(root_id) << std::endl;
         }
-      }else{
-      std::cout << "Search failed!" << std::endl;
+      }
+    }else{
+      if(root) std::cout << "Search failed!" << std::endl;
       assert(false);
     }
   }
