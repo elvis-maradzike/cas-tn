@@ -1,5 +1,5 @@
 #Specify the path to the ExaTN install directory:
-export EXATN_DIR ?= ~/.exatn
+export EXATN_DIR ?= ~/.exatn_andes
 
 CXX = g++
 RM = rm
@@ -12,7 +12,8 @@ simulation.o: ./src/simulation.cpp ./src/simulation.hpp
 
 	make -C ./tests/h4
 	make -C ./tests/h8
-	cp ./tests/*/*.x ./
+	make -C ./tests/h4_by_onr
+	#cp ./tests/*/*.x ./
 
 clean:
 	$(RM) -rf *.x ./tests/*/*.x *.o ./tests/*/*.o
