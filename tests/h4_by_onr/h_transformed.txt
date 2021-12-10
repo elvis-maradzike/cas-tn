@@ -1,3 +1,4 @@
+# Still needs to be converted to QCWare? format
 (4+0j) [] +
 (0.25+0j) [X0 Z1 X2] +
 -0.25j [X0 Z1 Y2] +
