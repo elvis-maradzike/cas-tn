@@ -2,10 +2,10 @@
 #include "mpi.h"
 #endif
 #include "exatn.hpp"
+#include "quantum.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
 #include "../../src/simulation.hpp"
-#include "quantum.hpp"
 using namespace std::chrono;
 using namespace castn;
 
@@ -29,7 +29,7 @@ int main(int argc, char** argv){
   const int bond_dim_lim = 4;
   const int max_bond_dim = std::min(static_cast<int>(std::pow(2,num_spin_sites/2)),bond_dim_lim);
   const int arity = 2;
-  const std::string tn_type = "TTN";
+  const std::string tn_type = "MPS";
   const unsigned int num_states = 3;
   const double accuracy = 1e-4;
 
@@ -41,7 +41,7 @@ int main(int argc, char** argv){
   {
 
     //Read the MCVQE Hamiltonian in spin representation:
-    auto hamiltonian0 = exatn::quantum::readSpinHamiltonian("MCVQEHamiltonian","tmp.txt",TENS_ELEM_TYPE,"QCWare");
+    auto hamiltonian0 = exatn::quantum::readSpinHamiltonian("MyHamiltonian","h_transformed.txt",TENS_ELEM_TYPE, "OpenFermion");
 
     hamiltonian0->printIt();
     
