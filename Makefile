@@ -1,5 +1,5 @@
 #Specify the path to the ExaTN install directory:
-export EXATN_DIR ?= ~/.exatn_andes
+export EXATN_DIR ?= ~/.exatn
 
 CXX = g++
 RM = rm
