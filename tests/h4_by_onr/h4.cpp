@@ -41,7 +41,7 @@ int main(int argc, char** argv){
   {
 
     //Read the MCVQE Hamiltonian in spin representation:
-    auto hamiltonian0 = exatn::quantum::readSpinHamiltonian("MyHamiltonian","h_transformed.txt",TENS_ELEM_TYPE, "OpenFermion");
+    auto hamiltonian0 = exatn::quantum::readSpinHamiltonian("MyHamiltonian","h_spin_representation.txt",TENS_ELEM_TYPE, "OpenFermion");
 
     hamiltonian0->printIt();
     
