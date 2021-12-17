@@ -20,14 +20,10 @@ Then: make
 This compiles the CAS-TN source code and 
 generates an object files (simulation.o)
 
-Then: make -C ./tests/h4 and/or  
-make -C ./tests/h8
+This also generates executables that constitute tests for 
+this library.
 
-This compiles source code defining the input (tensor network ansatzes)
-for a system of 4 electrons (H\_4) and another of eight electrons (H\_8),
-and links the compiled code with the CAS-TN library.
-
-The generated executables may be run as you would any other executable, e.g:  
-cd tests/h4  
-./h4.x > h4.out & 
+The tests may be run as follows:  
+  cd tests/h4  
+  ./h4.x > h4.out & 
 
