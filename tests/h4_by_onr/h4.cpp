@@ -5,9 +5,7 @@
 #include "quantum.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
-#include "../../src/simulation.hpp"
 using namespace std::chrono;
-using namespace castn;
 
 int main(int argc, char** argv){
 
@@ -26,7 +24,7 @@ int main(int argc, char** argv){
 
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   const int num_spin_sites = 8;
-  const int bond_dim_lim = 4;
+  const int bond_dim_lim = 16;
   const int max_bond_dim = std::min(static_cast<int>(std::pow(2,num_spin_sites/2)),bond_dim_lim);
   const int arity = 2;
   const std::string tn_type = "MPS";
@@ -39,6 +37,20 @@ int main(int argc, char** argv){
   exatn::initialize();
 
   {
+
+    // define tensor expanstion explicitly
+    const unsigned int num_states = 1;
+    const double accuracy = 1e-4;
+    const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
+    auto c = exatn::makeSharedTensor("C", exatn::TensorShape{2,2,2,2,2,2,2,2});
+    auto success = exatn::createTensor(c, TENS_ELEM_TYPE);
+    auto net = exatn::makeSharedTensorNetwork("Net");
+    net->appendTensor(1,c,{});
+    auto ansatz = exatn::makeSharedTensorExpansion();
+    ansatz->appendComponent(net,{1.0,0.0});
+    ansatz->rename("Ansatz");
+    ansatz->printIt();
+    ansatz->markOptimizableAllTensors();
 
     //Read Hamiltonian in spin representation:
     auto hamiltonian = exatn::quantum::readSpinHamiltonian("MyHamiltonian","h_spin_representation.txt",TENS_ELEM_TYPE, "OpenFermion");
@@ -58,22 +70,38 @@ int main(int argc, char** argv){
 
     //Build tensor network vectors:
     auto ket_tensor = exatn::makeSharedTensor("TensorSpace",std::vector<int>(num_spin_sites,2));
-
     auto vec_net0 = exatn::makeSharedTensorNetwork("VectorNet1",ket_tensor,*tn_builder,false);
     vec_net0->markOptimizableAllTensors();
     auto vec_tns0 = exatn::makeSharedTensorExpansion("VectorTNS1",vec_net0,std::complex<double>{1.0,0.0});
 
-    // Create and initialize tensor network vector tensors:
-    if(root) std::cout << "Creating and initializing tensor network vector tensors ... ";
+   // Create and initialize tensor network vector tensors:
+    if(root) std::cout << "Creating and initializing tensor network vector tensors ... " << std::endl;
+    success = exatn::createTensorsSync(*net,TENS_ELEM_TYPE); assert(success);
+    success = exatn::initTensorFile("C", "optimized_ansatz.txt"); assert(success);
     success = exatn::createTensorsSync(*vec_net0,TENS_ELEM_TYPE); assert(success);
     success = exatn::initTensorsRndSync(*vec_net0); assert(success);
     if(root) std::cout << "Ok" << std::endl;
 
-    //Ground and three excited states in one call:
-    if(root) std::cout << "Ground and excited states search for the original Hamiltonian:" << std::endl;
-    exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
-    vec_net0->markOptimizableAllTensors();
-    success = exatn::initTensorsRndSync(*vec_tns0); assert(success);
+    //run reconstruction
+    vec_tns0->conjugate();
+    exatn::TensorNetworkReconstructor reconstructor(ansatz,vec_tns0,1e-5);
+    reconstructor.resetDebugLevel(2,0);
+    success = exatn::sync(); assert(success);
+    double residual_norm, fidelity;
+    bool reconstructed = reconstructor.reconstruct(&residual_norm,&fidelity,true);
+    success = exatn::sync(); assert(success);
+    if(reconstructed){
+      std::cout << "Reconstruction succeeded: Residual norm = " << residual_norm
+              << "; Fidelity = " << fidelity << std::endl;
+    }else{
+      std::cout << "Reconstruction failed!" << std::endl; assert(false);
+    }
+
+    
+    //Ground state:
+    if(root) std::cout << "Ground state search for the original Hamiltonian:" << std::endl;
+    exatn::TensorNetworkOptimizer::resetDebugLevel(2,0);
+    vec_tns0->conjugate();
     exatn::TensorNetworkOptimizer optimizer(hamiltonian,vec_tns0,accuracy);
     optimizer.enableParallelization(true);
     success = exatn::sync(); assert(success);

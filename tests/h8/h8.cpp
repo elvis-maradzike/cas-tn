@@ -1,7 +1,7 @@
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
-#include "../../src/simulation.hpp"
+#include "../../src/particle_number_representation.hpp"
 
 using namespace std::chrono;
 using namespace castn;
@@ -60,10 +60,10 @@ int main(int argc, char** argv){
     ansatz = std::make_shared<exatn::TensorExpansion>();
     ansatz->appendComponent(ansatz_net,{1.0,0.0});
 
-    double convergence_thresh = castn::Simulation::DEFAULT_CONVERGENCE_THRESH;
+    double convergence_thresh = castn::ParticleNumberRepresentation::DEFAULT_CONVERGENCE_THRESH;
 
     // declare object from Simulation class
-    Simulation optimizer(nao, nap, nco, nto, ntp);
+    ParticleNumberRepresentation optimizer(nao, nap, nco, nto, ntp);
     optimizer.resetWaveFunctionAnsatz(ansatz);
     optimizer.resetHamiltonian(hamiltonian);
     optimizer.optimize(1,convergence_thresh);
