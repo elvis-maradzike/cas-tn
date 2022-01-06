@@ -6,8 +6,8 @@ RM = rm
 CXXFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --cxxflags` `$(EXATN_DIR)/bin/exatn-config --includes`
 LFLAGS = -g `$(EXATN_DIR)/bin/exatn-config --libs` -lm
 
-h8.x: h8.o ../../particle_number_representation.o
-	$(CXX) $(CXXFLAGS) h8.o ../../particle_number_representation.o -o h8.x $(LFLAGS)
+h8.x: h8.o ../../particle_ansatz.o
+	$(CXX) $(CXXFLAGS) h8.o ../../particle_ansatz.o -o h8.x $(LFLAGS)
 
 h8.o: h8.cpp
 	$(CXX) $(CXXFLAGS) -c h8.cpp
