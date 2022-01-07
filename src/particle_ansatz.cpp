@@ -113,14 +113,7 @@ bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh)
 
 bool SpinSiteAnsatz::optimize(std::size_t num_states, double convergence_thresh){
 
-  /*
-  // set k = 0, l = 0.02, c = 1.0;
-  unsigned int k = 0; 
-  double l = 0.02;
-  double c = 1.0;
-  double c_update_factor = 2.0;
-  double change_in_lagrangian = 0.0;
-  do{
+  bool success = true;
     //setting up and calling the optimizer in ../src/exatn/..
     exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
     exatn::TensorNetworkOptimizer optimizer(hamiltonian_operator_,ket_ansatz_,convergence_thresh_);
@@ -136,14 +129,8 @@ bool SpinSiteAnsatz::optimize(std::size_t num_states, double convergence_thresh)
       std::cout << "Optimization failed!" << std::endl;
      }
     }
-    //update parameters
-    // compute val_constraint and val_expectation and val_lagrangian
-    l = l - c * val_constraint;
-    c = c_update_factor * c;
-    val_old_lagrangian = val_current_lagrangian;
-  }while(fabs(change_in_lagrangian) > 1e-5);
-  */
-  
+ 
+  /* 
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   const auto TENSOR_SHAPE = exatn::TensorShape{};
   bool success = true;
@@ -256,6 +243,7 @@ bool SpinSiteAnsatz::optimize(std::size_t num_states, double convergence_thresh)
      c = c_update_factor * c; 
      std::cout << "lambda, c: " << lambda << "," << c << std::endl;
    } while(fabs(change_in_lagrangian) > 1e-5);
+   */
 
   return success;
 }
