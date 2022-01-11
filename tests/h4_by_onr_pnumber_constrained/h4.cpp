@@ -71,54 +71,41 @@ int main(int argc, char** argv){
   // read in Hamiltonian
   auto hamiltonian = exatn::quantum::readSpinHamiltonian("MyHamiltonian","hamiltonian.txt",TENS_ELEM_TYPE, "OpenFermion");
 
-  auto particle_number = exatn::quantum::readSpinHamiltonian("MyParticleNumber","particle_number.txt",TENS_ELEM_TYPE, "OpenFermion");
-
   // create and initialize tensor network 
   success = exatn::createTensorsSync(*input_net,TENS_ELEM_TYPE); assert(success);
   success = exatn::initTensorsRndSync(*input_net); assert(success);
 
   double convergence_thresh = castn::ParticleAnsatz::DEFAULT_CONVERGENCE_THRESH;
-  //SpinSiteAnsatz optimizer(num_active_orbitals,num_active_particles,num_core_orbitals,num_total_orbitals,num_total_particles);
 
   double lambda = 0.04;
   double factor = double(num_total_particles) * double(num_total_particles);
 
   // define
   auto number_op_tensor = exatn::makeSharedTensor("NumberOpTensor",exatn::TensorShape{2,2});
-  auto prod_number_op_tensors = exatn::makeSharedTensor("ProdNumberOpTensors",exatn::TensorShape{2,2,2,2});
   auto constant_n = exatn::makeSharedTensor("ConstantN",exatn::TensorShape{});
 
   // create 
   success = exatn::createTensor(number_op_tensor,TENS_ELEM_TYPE); assert(success);
-  success = exatn::createTensor(prod_number_op_tensors,TENS_ELEM_TYPE); assert(success);
   success = exatn::createTensor(constant_n,TENS_ELEM_TYPE); assert(success);
 
   // initialize 
   success = exatn::initTensorData("NumberOpTensor",std::vector<std::complex<double>>{
                                            {0.0,0.0}, {0.0,0.0},
                                            {0.0,0.0}, {1.0,0.0}}); assert(success);
-  success = exatn::initTensorData("ProdNumberOpTensors",std::vector<std::complex<double>>{
-                                           {0.0,0.0}, {0.0,0.0}, {0.0,0.0}, {0.0,0.0},
-                                           {0.0,0.0}, {0.0,0.0}, {0.0,0.0}, {0.0,0.0},
-                                           {0.0,0.0}, {0.0,0.0}, {0.0,0.0}, {0.0,0.0},
-                                           {0.0,0.0}, {0.0,0.0}, {0.0,0.0}, {1.0,0.0}}); assert(success);
   success = exatn::initTensor("ConstantN",std::complex<double>{factor,0.0}); assert(success);
-
-  // operator 
-  //auto modifiedHamiltonian = exatn::makeSharedTensorOperator("ModifiedHamiltonian");
 
   // one particle operator
   factor = -2.0 * lambda * double(num_total_particles);
   for ( unsigned int i = 0; i < num_total_orbitals; i++){
     success = hamiltonian->appendComponent(number_op_tensor,{{i,0}},{{i,1}},{factor,0.0}); assert(success);
   }
-  // contributions from diagonal in product operator
+  // contributions from diagonals sum_i (ni (x) ni)
   factor = lambda;
   for ( unsigned int i = 0; i < num_total_orbitals; i++){
     success = hamiltonian->appendComponent(number_op_tensor,{{i,0}},{{i,1}},{factor,0.0}); assert(success);
   }
  
-  // products
+  // contributions from \sum_ij (ni (x) nj)
   for ( unsigned int i = 0; i < num_total_particles; i++){
     for ( unsigned int j = 0; j < num_total_particles; j++){
       if (i == j) continue;
@@ -131,30 +118,11 @@ int main(int argc, char** argv){
   }
 
   success = hamiltonian->appendComponent(constant_n,{},{},{factor,0.0}); assert(success);
-  //modifiedHamiltonian->printIt();
-
 
   SpinSiteAnsatz optimizer(num_total_orbitals, num_total_particles);
   optimizer.resetWaveFunctionAnsatz(ansatz);
   optimizer.resetHamiltonianOperator(hamiltonian);
-  //optimizer.resetConstraintOperator(modifiedHamiltonian);
   optimizer.optimize(1,convergence_thresh);
-
-   /**
-      // ground state:
-    if(root) std::cout << "Ground state search for the original Hamiltonian:" << std::endl;
-    exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
-    exatn::TensorNetworkOptimizer optimizer(hamiltonian,ansatz,accuracy);
-    optimizer.enableParallelization(true);
-    success = exatn::sync(); assert(success);
-    bool converged = optimizer.optimize(num_states);
-    success = exatn::sync(); assert(success);
-    if(converged){
-        std::cout << "Search succeeded:" << std::endl;
-          std::cout << "Expectation value " << 0 << " = "
-                 << optimizer.getExpectationValue(0) << std::endl;
-    }
-    **/ 
 
   }
   
