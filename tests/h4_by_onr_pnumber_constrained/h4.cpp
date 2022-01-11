@@ -80,7 +80,7 @@ int main(int argc, char** argv){
   double convergence_thresh = castn::ParticleAnsatz::DEFAULT_CONVERGENCE_THRESH;
   //SpinSiteAnsatz optimizer(num_active_orbitals,num_active_particles,num_core_orbitals,num_total_orbitals,num_total_particles);
 
-  double lambda = 0.005;
+  double lambda = 0.04;
   double factor = double(num_total_particles) * double(num_total_particles);
 
   // define
@@ -105,28 +105,39 @@ int main(int argc, char** argv){
   success = exatn::initTensor("ConstantN",std::complex<double>{factor,0.0}); assert(success);
 
   // operator 
-  auto modifiedHamiltonian = exatn::makeSharedTensorOperator("ModifiedHamiltonian");
+  //auto modifiedHamiltonian = exatn::makeSharedTensorOperator("ModifiedHamiltonian");
 
+  // one particle operator
   factor = -2.0 * lambda * double(num_total_particles);
   for ( unsigned int i = 0; i < num_total_orbitals; i++){
     success = hamiltonian->appendComponent(number_op_tensor,{{i,0}},{{i,1}},{factor,0.0}); assert(success);
   }
-
+  // contributions from diagonal in product operator
   factor = lambda;
+  for ( unsigned int i = 0; i < num_total_orbitals; i++){
+    success = hamiltonian->appendComponent(number_op_tensor,{{i,0}},{{i,1}},{factor,0.0}); assert(success);
+  }
+ 
+  // products
   for ( unsigned int i = 0; i < num_total_particles; i++){
-    for ( unsigned int j = i+1; j < num_total_particles; j++){
-      success = hamiltonian->appendComponent(prod_number_op_tensors,{{i,0},{j,1}},{{i,2},{j,3}},{factor,0.0}); assert(success);
+    for ( unsigned int j = 0; j < num_total_particles; j++){
+      if (i == j) continue;
+      auto network = exatn::makeSharedTensorNetwork("Network");
+      auto appended = network->appendTensor(1, number_op_tensor,{}); assert(appended);
+      appended = network->appendTensor(2, number_op_tensor,{}); assert(appended);
+      success = hamiltonian->appendComponent(network,{{i,0},{j,2}},{{i,1},{j,3}}, {factor,0.0}); assert(success);
+
     }
   }
 
   success = hamiltonian->appendComponent(constant_n,{},{},{factor,0.0}); assert(success);
-  modifiedHamiltonian->printIt();
+  //modifiedHamiltonian->printIt();
 
 
   SpinSiteAnsatz optimizer(num_total_orbitals, num_total_particles);
   optimizer.resetWaveFunctionAnsatz(ansatz);
   optimizer.resetHamiltonianOperator(hamiltonian);
-  optimizer.resetConstraintOperator(modifiedHamiltonian);
+  //optimizer.resetConstraintOperator(modifiedHamiltonian);
   optimizer.optimize(1,convergence_thresh);
 
    /**
