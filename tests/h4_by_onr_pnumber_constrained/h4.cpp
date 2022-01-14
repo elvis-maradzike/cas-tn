@@ -25,8 +25,7 @@ int main(int argc, char** argv){
   exatn::initialize(exatn_parameters, "lazy-dag-executor");
 #endif
   
-  exatn::resetLoggingLevel(2,2);
-  
+  {
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   const int num_spin_sites = 8;
   const int bond_dim_lim = 16;
@@ -41,8 +40,6 @@ int main(int argc, char** argv){
   std::size_t num_active_orbitals = 8, num_active_particles = 4, 
   num_core_orbitals = 0, num_total_orbitals = 8, num_total_particles = 4;
 
-  exatn::initialize();
-  {
   // configure the tensor network builder:
   auto tn_builder = exatn::getTensorNetworkBuilder(tn_type);
   if(tn_type == "MPS"){
