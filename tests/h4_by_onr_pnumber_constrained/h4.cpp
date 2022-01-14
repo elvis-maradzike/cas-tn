@@ -106,8 +106,8 @@ int main(int argc, char** argv){
   }
  
   // contributions from \sum_ij (ni (x) nj)
-  for ( unsigned int i = 0; i < num_total_particles; i++){
-    for ( unsigned int j = 0; j < num_total_particles; j++){
+  for ( unsigned int i = 0; i < num_total_orbitals; i++){
+    for ( unsigned int j = 0; j < num_total_orbitals; j++){
       if (i == j) continue;
       auto network = exatn::makeSharedTensorNetwork("Network");
       auto appended = network->appendTensor(1, number_op_tensor,{}); assert(appended);
