@@ -5,7 +5,10 @@
 #include "quantum.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
+#include "../../cas-tn/src/spin_site_ansatz.hpp"
+
 using namespace std::chrono;
+using namespace castn;
 
 int main(int argc, char** argv){
 
@@ -22,6 +25,8 @@ int main(int argc, char** argv){
   exatn::initialize(exatn_parameters, "lazy-dag-executor");
 #endif
 
+
+  {
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   const int num_spin_sites = 8;
   const int bond_dim_lim = 16;
@@ -29,23 +34,12 @@ int main(int argc, char** argv){
   const int arity = 2;
   const std::string tn_type = "MPS";
   const unsigned int num_states = 1;
-  const double accuracy = 1e-4;
+  const double accuracy = 1e-5;
   bool success = true;
   bool root = (exatn::getProcessRank() == 0);
-
-  exatn::initialize();
-  {
-  // define input tensor to make target:
-  auto target_tensor = exatn::makeSharedTensor("TargetTensor",std::vector<int>(num_spin_sites,2));
-  auto success = exatn::createTensor(target_tensor, TENS_ELEM_TYPE);
-  auto target_net = exatn::makeSharedTensorNetwork("TargetNet");
-  target_net->appendTensor(1,target_tensor,{});
-  target_net->markOptimizableAllTensors();
-  auto target = exatn::makeSharedTensorExpansion();
-  target->appendComponent(target_net,{1.0,0.0});
-  target->rename("TargetExpansion");
-  //target->printIt();
-  target->markOptimizableAllTensors();
+  // active orbitals, active particles, core orbitals, total orbitals, total particles
+  std::size_t num_active_orbitals = 8, num_active_particles = 4, 
+  num_core_orbitals = 0, num_total_orbitals = 8, num_total_particles = 4;
 
   // configure the tensor network builder:
   auto tn_builder = exatn::getTensorNetworkBuilder(tn_type);
@@ -59,67 +53,34 @@ int main(int argc, char** argv){
   }
   
   // output tensor
-  auto approximant_tensor = exatn::makeSharedTensor("TensorSpace",std::vector<int>(num_spin_sites,2));
-  success = exatn::createTensor(approximant_tensor, TENS_ELEM_TYPE);
-  //approximant_tensor->printIt();
+  auto input_tensor = exatn::makeSharedTensor("TensorSpace",std::vector<int>(num_spin_sites,2));
+  success = exatn::createTensor(input_tensor, TENS_ELEM_TYPE);
+  //input_tensor->printIt();
 
   // tensor network 
-  auto approximant_net = exatn::makeSharedTensorNetwork("ApproximantNetwork",approximant_tensor,*tn_builder,false);
-  approximant_net->markOptimizableAllTensors();
+  auto input_net = exatn::makeSharedTensorNetwork("InputNetwork",input_tensor,*tn_builder,false);
+  input_net->markOptimizableAllTensors();
 
   // tensor network expansion
-  auto approximant = exatn::makeSharedTensorExpansion();
-  approximant->appendComponent(approximant_net,{1.0,0.0});
-  approximant->rename("Approximant");
+  auto ansatz = exatn::makeSharedTensorExpansion();
+  ansatz->appendComponent(input_net,{1.0,0.0});
+  ansatz->rename("KetAnsatz");
+
   
   // read in Hamiltonian
-  auto hamiltonian = exatn::quantum::readSpinHamiltonian("MyHamiltonian","h_spin_representation.txt",TENS_ELEM_TYPE, "OpenFermion");
+  auto hamiltonian = exatn::quantum::readSpinHamiltonian("MyHamiltonian","hamiltonian.txt",TENS_ELEM_TYPE, "OpenFermion");
 
   // create and initialize tensor network 
-  if(root) std::cout << "Creating and initializing tensor network vector tensors ... " << std::endl;
-  success = exatn::createTensorsSync(*approximant_net,TENS_ELEM_TYPE); assert(success);
-  success = exatn::initTensorsRndSync(*approximant_net); assert(success);
-  success = exatn::initTensorFile("TargetTensor", "optimized_tensor.txt"); assert(success);
-  if(root) std::cout << "Ok" << std::endl;
-
-  // run reconstruction
-  approximant->conjugate();
-  exatn::TensorNetworkReconstructor reconstructor(target,approximant,1e-7);
-  reconstructor.resetDebugLevel(2,0);
+  success = exatn::createTensorsSync(*input_net,TENS_ELEM_TYPE); assert(success);
+  success = exatn::initTensorsRndSync(*input_net); assert(success);
+  
+  exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
+  exatn::TensorNetworkOptimizer optimizer(hamiltonian,ansatz,accuracy);
+  optimizer.enableParallelization(true);
   success = exatn::sync(); assert(success);
-  double residual_norm, fidelity;
-  bool reconstructed = reconstructor.reconstruct(&residual_norm,&fidelity,true);
+  bool converged = optimizer.optimize(1);
   success = exatn::sync(); assert(success);
-    if(reconstructed){
-      std::cout << "Reconstruction succeeded: Residual norm = " << residual_norm
-              << "; Fidelity = " << fidelity << std::endl;
-    }else{
-      std::cout << "Reconstruction failed!" << std::endl; assert(false);
-    }
 
-
-    approximant->conjugate();
-   
-    // ground state:
-    if(root) std::cout << "Ground state search for the original Hamiltonian:" << std::endl;
-    exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
-    exatn::TensorNetworkOptimizer optimizer(hamiltonian,approximant,accuracy);
-    optimizer.enableParallelization(true);
-    success = exatn::sync(); assert(success);
-    bool converged = optimizer.optimize(num_states);
-    success = exatn::sync(); assert(success);
-    if(converged){
-      if(root){
-        std::cout << "Search succeeded:" << std::endl;
-        for(unsigned int root_id = 0; root_id < num_states; ++root_id){
-          std::cout << "Expectation value " << root_id << " = "
-                 << optimizer.getExpectationValue(root_id) << std::endl;
-        }
-      }
-    }else{
-      if(root) std::cout << "Search failed!" << std::endl;
-      assert(false);
-    }
   }
 
   exatn::finalize();
