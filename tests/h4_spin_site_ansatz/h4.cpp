@@ -7,7 +7,6 @@
 #include <iomanip>
 
 using namespace std::chrono;
-using namespace castn;
 
 int main(int argc, char** argv){
 
