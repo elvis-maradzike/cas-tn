@@ -11,10 +11,9 @@ particle_ansatz.o: ./src/particle_ansatz.cpp ./src/particle_ansatz.hpp
 	$(CXX) $(CXXFLAGS) -c ./src/particle_ansatz.cpp
 
 	 make -C ./tests/h4
-	 #make -C ./tests/h8
-	 #make -C ./tests/h4_by_onr
-	 #make -C ./tests/h4_by_onr_contiguous_ansatz
-	 make -C ./tests/h4_by_onr_pnumber_constrained
+	 make -C ./tests/h8
+	 make -C ./tests/h4_spin_site_ansatz
+	 make -C ./tests/h4_square_spin_site_ansatz
 	 #cp ./tests/*/*.x ./
 
 clean:

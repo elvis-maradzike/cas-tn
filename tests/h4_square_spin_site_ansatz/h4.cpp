@@ -5,7 +5,6 @@
 #include "quantum.hpp"
 #include "talshxx.hpp"
 #include <iomanip>
-#include "../../cas-tn/src/spin_site_ansatz.hpp"
 
 using namespace std::chrono;
 using namespace castn;
