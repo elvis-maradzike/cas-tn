@@ -60,7 +60,7 @@ int main(int argc, char** argv){
     ansatz = std::make_shared<exatn::TensorExpansion>();
     ansatz->appendComponent(ansatz_net,{1.0,0.0});
 
-    double convergence_thresh = castn::ParticleNumberRepresentation::DEFAULT_CONVERGENCE_THRESH;
+    double convergence_thresh = 1e-5;
 
     // declare object from Simulation class
     ParticleAnsatz optimizer(nao, nap, nco, nto, ntp);
