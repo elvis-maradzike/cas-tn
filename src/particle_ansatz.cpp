@@ -217,13 +217,10 @@ int ParticleAnsatz::FunctorInitOrdering::apply(talsh::Tensor & local_tensor) //t
 bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh){
 
   bool success = false;
-    std::cout << "***!" << std::endl;
-  auto hamiltonian_operator_= exatn::makeSharedTensorOperator("HamiltonianOperator");
+  auto hamiltonian_operator = exatn::makeSharedTensorOperator("HamiltonianOperator");
   //(anti)symmetrization
-  success = hamiltonian_operator_->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
-    std::cout << "***!" << std::endl;
-  success = hamiltonian_operator_->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
-    std::cout << "***!" << std::endl;
+  success = hamiltonian_operator->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
+  success = hamiltonian_operator->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
 
   //mark optimizable tensors
   markOptimizableTensors();
@@ -233,17 +230,11 @@ bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh)
 
   //setting up and calling the optimizer in ../src/exatn/..
   exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
-    std::cout << "***!" << std::endl;
-  exatn::TensorNetworkOptimizer optimizer(hamiltonian_operator_,ket_ansatz_,convergence_thresh_);
-    std::cout << "***!" << std::endl;
+  exatn::TensorNetworkOptimizer optimizer(hamiltonian_operator,ket_ansatz_,convergence_thresh_);
   optimizer.enableParallelization(true);
-    std::cout << "***!" << std::endl;
   optimizer.resetLearningRate(0.5);
-    std::cout << "***!" << std::endl;
   bool converged = optimizer.optimize();
-    std::cout << "***!" << std::endl;
   success = exatn::sync(); assert(success);
-    std::cout << "***!" << std::endl;
   success = converged;
   if(exatn::getProcessRank() == 0){
    if(converged){
@@ -504,16 +495,26 @@ void ParticleAnsatz::appendOrderingProjectors(){
 
   //reordering output modes
   std::vector<unsigned int> reorder;
-  int num_output_modes = int(total_particles_);
+  unsigned int num_output_modes = total_particles_;
   //for ( auto i = 0; i < num_output_modes; i++){
-  for ( auto i = 0; i < 4; i++){
+  for ( unsigned int i = 0; i < num_output_modes; i++){
     if (i%2 == 0) reorder.emplace_back(i);
   }
-  //for ( auto i = num_output_modes-1; i >= 0; i--){
-  for ( auto i = 4-1; i >= 0; i--){
+  
+  for ( unsigned int i = num_output_modes-1; i > 0; i--){
     if (i%2 == 1) reorder.emplace_back(i);
   }
-  std::cout << "Done" << std::endl;
+
+  /*
+  unsigned int i = num_output_modes-1; 
+  do {
+    std::cout << "Done3" << std::endl;
+    if (i%2 == 1) reorder.emplace_back(i);
+    std::cout << "Done4" << std::endl;
+    --i; 
+    std::cout << "Done5" << std::endl;
+  }while( i > 0);
+  */
   std::cout << "reorder contains: ";
   for ( auto& x: reorder){
     std::cout << ' ' <<  x;
