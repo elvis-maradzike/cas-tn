@@ -140,6 +140,66 @@ protected:
 
  std::vector<Environment> environments_;
 
+ class FunctorInitDelta: public talsh::TensorFunctor<Identifiable>{
+public:
+
+ FunctorInitDelta() = default;
+
+ virtual ~FunctorInitDelta() = default;
+
+ virtual const std::string name() const override
+ {
+  return "TensorFunctorInitDelta";
+ }
+
+ virtual const std::string description() const override
+ {
+  return "Initializes tensor with Kronecker delta";
+ }
+ /** Packs data members into a byte packet. **/
+ virtual void pack(BytePacket & packet) override;
+
+ /** Unpacks data members from a byte packet. **/
+ virtual void unpack(BytePacket & packet) override;
+
+
+ /** Description **/
+ virtual int apply(talsh::Tensor & local_tensor) override;
+
+private:
+
+};
+
+ class FunctorInitOrdering: public talsh::TensorFunctor<Identifiable>{
+public:
+
+ FunctorInitOrdering() = default;
+
+ virtual ~FunctorInitOrdering() = default;
+
+ virtual const std::string name() const override
+ {
+  return "TensorFunctorInitOrdering";
+ }
+
+ virtual const std::string description() const override
+ {
+  return "Initializes tensor: 1.0 if  m < n, 0.0 otherwise";
+ }
+ /** Packs data members into a byte packet. **/
+ virtual void pack(BytePacket & packet) override;
+
+ /** Unpacks data members from a byte packet. **/
+ virtual void unpack(BytePacket & packet) override;
+
+
+ /** Description **/
+ virtual int apply(talsh::Tensor & local_tensor) override;
+
+private:
+
+};
+
 
 };
 
@@ -162,9 +222,11 @@ class  SpinSiteAnsatz: public ParticleAnsatz {
 
   protected:
 
+
   private:
  
 };
+
 
 } //namespace castn
 

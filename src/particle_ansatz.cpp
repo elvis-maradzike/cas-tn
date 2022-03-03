@@ -13,6 +13,8 @@ Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
 
 namespace castn {
 
+
+
 void ParticleAnsatz::clear()
 {
  state_energies_.clear();
@@ -79,13 +81,149 @@ void ParticleAnsatz::markOptimizableTensors(){
   }
 }
 
+
+void ParticleAnsatz::FunctorInitDelta::pack(BytePacket & packet)
+{
+ return;
+}
+
+void ParticleAnsatz::FunctorInitDelta::unpack(BytePacket & packet)
+{
+ return;
+}
+
+int ParticleAnsatz::FunctorInitDelta::apply(talsh::Tensor & local_tensor) //tensor slice (in general)
+{
+ unsigned int rank;
+ const auto * extents = local_tensor.getDimExtents(rank); //rank is returned by reference
+ const auto tensor_volume = local_tensor.getVolume(); //volume of the given tensor slice
+ const auto & offsets = local_tensor.getDimOffsets(); //base offsets of the given tensor slice
+ 
+ auto init_delta = [&](auto * tensor_body){
+ std::vector<exatn::DimOffset> bas(rank); 
+ for(unsigned int i = 0; i < rank; ++i) bas[i] = offsets[i]; //tensor slice dimension base offsets
+ std::vector<exatn::DimExtent> ext(rank); 
+ for(unsigned int i = 0; i < rank; ++i) ext[i] = extents[i]; //tensor slice dimension extents
+ exatn::TensorRange tens_range(bas,ext);
+ bool not_over = true;
+ const auto & multi_index = tens_range.getMultiIndex();
+ while(not_over){
+   if (tens_range.onDiagonal()){
+     tensor_body[tens_range.localOffset()] = 1.0;
+   }else{
+     tensor_body[tens_range.localOffset()] = 0.0;
+   }
+   not_over = tens_range.next();
+ }
+ return 0;
+ };
+ 
+ auto access_granted = false;
+ {//Try REAL32:
+  float * body;
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_delta(body);
+ }
+ 
+ {//Try REAL64:
+  double * body; 
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_delta(body);
+ }
+ 
+ {//Try COMPLEX32:
+  std::complex<float> * body;
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_delta(body);
+ }
+ 
+ {//Try COMPLEX64:
+  std::complex<double> * body;
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_delta(body);
+ }
+ 
+ std::cout << "#ERROR(exatn::numerics::FunctorInitDelta): Unknown data kind in talsh::Tensor!" << std::endl;
+ return 1;
+}
+
+
+void ParticleAnsatz::FunctorInitOrdering::pack(BytePacket & packet)
+{
+ return;
+}
+
+void ParticleAnsatz::FunctorInitOrdering::unpack(BytePacket & packet)
+{
+ return;
+}
+
+int ParticleAnsatz::FunctorInitOrdering::apply(talsh::Tensor & local_tensor) //tensor slice (in general)
+{
+ unsigned int rank;
+ const auto * extents = local_tensor.getDimExtents(rank); //rank is returned by reference
+ const auto tensor_volume = local_tensor.getVolume(); //volume of the given tensor slice
+ const auto & offsets = local_tensor.getDimOffsets(); //base offsets of the given tensor slice
+ 
+ auto init_ordered = [&](auto * tensor_body){
+ std::vector<exatn::DimOffset> bas(rank);
+ for(unsigned int i = 0; i < rank; ++i) bas[i] = offsets[i]; //tensor slice dimension base offsets
+ std::vector<exatn::DimExtent> ext(rank);
+ for(unsigned int i = 0; i < rank; ++i) ext[i] = extents[i]; //tensor slice dimension extents
+ exatn::TensorRange tens_range(bas,ext);
+ bool not_over = true;
+ const auto & multi_index = tens_range.getMultiIndex();
+ while(not_over){
+   if (tens_range.increasingOrder()){
+     tensor_body[tens_range.localOffset()] = 1.0;
+   }else{
+     tensor_body[tens_range.localOffset()] = 0.0;
+   }
+   not_over = tens_range.next();
+ }
+ return 0;
+ };
+ 
+ auto access_granted = false;
+ {//Try REAL32:
+  float * body;
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_ordered(body);
+ }
+ 
+ {//Try REAL64:
+  double * body; 
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_ordered(body);
+ }
+
+ {//Try COMPLEX32:
+  std::complex<float> * body;
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_ordered(body);
+ }
+
+ {//Try COMPLEX64:
+  std::complex<double> * body;
+  access_granted = local_tensor.getDataAccessHost(&body);
+  if(access_granted) return init_ordered(body);
+ }
+
+ std::cout << "#ERROR(exatn::numerics::FunctorInitOrdering): Unknown data kind in talsh::Tensor!" << std::endl;
+ return 1;
+}
+
+
 bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh){
 
-  bool success = true;
-  auto hamiltonian_operator = exatn::makeSharedTensorOperator("HamiltonianOperator");
+  bool success = false;
+    std::cout << "***!" << std::endl;
+  auto hamiltonian_operator_= exatn::makeSharedTensorOperator("HamiltonianOperator");
   //(anti)symmetrization
   success = hamiltonian_operator_->appendSymmetrizeComponent(hamiltonian_[0],{0,1},{2,3}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
+    std::cout << "***!" << std::endl;
   success = hamiltonian_operator_->appendSymmetrizeComponent(hamiltonian_[1],{0},{1}, num_particles_, num_particles_,{1.0,0.0},true); assert(success);
+    std::cout << "***!" << std::endl;
 
   //mark optimizable tensors
   markOptimizableTensors();
@@ -95,11 +233,17 @@ bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh)
 
   //setting up and calling the optimizer in ../src/exatn/..
   exatn::TensorNetworkOptimizer::resetDebugLevel(1,0);
+    std::cout << "***!" << std::endl;
   exatn::TensorNetworkOptimizer optimizer(hamiltonian_operator_,ket_ansatz_,convergence_thresh_);
+    std::cout << "***!" << std::endl;
   optimizer.enableParallelization(true);
+    std::cout << "***!" << std::endl;
   optimizer.resetLearningRate(0.5);
+    std::cout << "***!" << std::endl;
   bool converged = optimizer.optimize();
+    std::cout << "***!" << std::endl;
   success = exatn::sync(); assert(success);
+    std::cout << "***!" << std::endl;
   success = converged;
   if(exatn::getProcessRank() == 0){
    if(converged){
@@ -250,7 +394,10 @@ bool SpinSiteAnsatz::optimize(std::size_t num_states, double convergence_thresh)
 
 /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
 void ParticleAnsatz::appendOrderingProjectors(){
+
+  /*
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
+
   auto created = exatn::createTensor("Q",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
   exatn::transformTensorSync("Q", std::shared_ptr<exatn::TensorMethod>{new exatn::numerics::FunctorInitProj()});
 
@@ -269,213 +416,144 @@ void ParticleAnsatz::appendOrderingProjectors(){
       tensorIdCounter++;
     }
   }
+  std::cout << "Done with ordering projectors " << std::endl;
+  */
+
+  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
+
+  auto created = exatn::createTensor("INTERMEDIATE",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  created = exatn::createTensor("DIFF",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  created = exatn::createTensor("Q",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_, total_orbitals_}); assert(created);
+  created = exatn::createTensor("OP",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_, total_orbitals_}); assert(created);
+  created = exatn::createTensor("OL",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  created = exatn::createTensor("OM",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_}); assert(created);
+  created = exatn::createTensor("OR",TENS_ELEM_TYPE, exatn::TensorShape{total_orbitals_,total_orbitals_,total_orbitals_}); assert(created);
+  created = exatn::createTensor("tmp1",TENS_ELEM_TYPE, exatn::TensorShape{4,4,4}); assert(created);
+  created = exatn::createTensor("tmp2",TENS_ELEM_TYPE, exatn::TensorShape{4,4}); assert(created);
+  created = exatn::createTensor("tmp3",TENS_ELEM_TYPE, exatn::TensorShape{4,4,4,4}); assert(created);
+
+  auto done = transformTensor("OL", std::shared_ptr<exatn::TensorMethod>( new FunctorInitDelta())); assert(done);
+  done = transformTensor("OR", std::shared_ptr<exatn::TensorMethod>( new FunctorInitDelta())); assert(done);
+  done = transformTensor("OM", std::shared_ptr<exatn::TensorMethod>( new FunctorInitOrdering())); assert(done);
+  done = transformTensorSync("Q", std::shared_ptr<exatn::TensorMethod>{new exatn::numerics::FunctorInitProj()}); assert(done);
+  //done = transformTensorSync("tmp1", std::shared_ptr<exatn::TensorMethod>{new FunctorInitDelta()}); assert(done);
+  //done = transformTensorSync("tmp2", std::shared_ptr<exatn::TensorMethod>{new FunctorInitOrdering()}); assert(done);
+  //done = transformTensorSync("tmp3", std::shared_ptr<exatn::TensorMethod>{new exatn::numerics::FunctorInitProj()}); assert(done);
+
+  //done = exatn::printTensorSync("tmp1"); assert(done);
+  //done = exatn::printTensorSync("tmp3"); assert(done);
+
+  done = exatn::initTensor("DIFF", 0.0);
+  done = exatn::initTensor("OP", 0.0);
+  done = exatn::initTensor("INTERMEDIATE", 0.0);
+  done = exatn::contractTensorsSync("INTERMEDIATE(i,k,n)+=OL(i,m,k)*OM(m,n)", 1.0); assert(done);
+  done = exatn::contractTensorsSync("OP(i,j,k,l)+=INTERMEDIATE(i,k,n)*OR(j,n,l)", 1.0); assert(done);
+  done = exatn::addTensors("DIFF(i,j,k,l)+=Q(i,j,k,l)", 1.0); assert(done);
+  done = exatn::addTensors("DIFF(i,j,k,l)+=OP(i,j,k,l)", -1.0); assert(done);
+
+  double val = 0.0;
+  done = exatn::computeMaxAbsSync("DIFF",val); assert(done);
+  std::cout << "val is " << val << std::endl;
+
+  std::vector<std::pair<unsigned int, unsigned int>> pairing1;
+  std::vector<std::pair<unsigned int, unsigned int>> pairing2;
+  pairing1.emplace_back(std::make_pair(1,0));
+  pairing2.emplace_back(std::make_pair(2,0));
+
+  auto appended = false;
+
+  // number of sites
+  auto num_sites = total_particles_;
+  // number of layers needed
+  auto num_layers = total_particles_/2;
+
+  auto oleft = exatn::getTensor("OL");
+  auto omiddle = exatn::getTensor("OM");
+  auto oright = exatn::getTensor("OR");
+  auto op = exatn::getTensor("OP");
+
+  done = exatn::printTensorSync("OR"); assert(done);
+    // first layer
+  for ( auto i = 0; i < total_particles_/2; i++){
+    auto tn_op = exatn::makeSharedTensorNetwork("TN_OP");
+    appended = tn_op->appendTensor(1, oleft, {},{}, false); assert(appended);
+    appended = tn_op->appendTensor(2, omiddle, pairing1, {}, false); assert(appended);
+    appended = tn_op->appendTensor(3, oright, pairing2, {}, false); assert(appended);
+
+    for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
+      auto & network = *(iter->network);
+      appended = network.appendTensorNetwork(std::move(*tn_op),{{0,0},{1,2}}); assert(appended);
+    //  network.printIt();
+    }
+  }
+
+  // subsequent layers
+  for ( auto j = 1; j < num_layers; ++j){
+    for ( auto i = 0; i < num_sites/2-j; ++i){
+      auto tn_op = exatn::makeSharedTensorNetwork("TN_OP");
+      appended = tn_op->appendTensor(1, oleft, {},{}, false); assert(appended);
+      appended = tn_op->appendTensor(2, omiddle, pairing1, {}, false); assert(appended);
+      appended = tn_op->appendTensor(3, oright, pairing2, {}, false); assert(appended);
+      for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
+        auto & network = *(iter->network);
+        appended = network.appendTensorNetwork(std::move(*tn_op),{{2*j-1,0},{2*j,2}}); assert(appended);
+      //  network.printIt();
+      }
+    }
+  }
+
+  //reordering output modes
+  std::vector<unsigned int> reorder;
+  int num_output_modes = int(total_particles_);
+  //for ( auto i = 0; i < num_output_modes; i++){
+  for ( auto i = 0; i < 4; i++){
+    if (i%2 == 0) reorder.emplace_back(i);
+  }
+  //for ( auto i = num_output_modes-1; i >= 0; i--){
+  for ( auto i = 4-1; i >= 0; i--){
+    if (i%2 == 1) reorder.emplace_back(i);
+  }
+  std::cout << "Done" << std::endl;
+  std::cout << "reorder contains: ";
+  for ( auto& x: reorder){
+    std::cout << ' ' <<  x;
+  }
+  std::cout << std::endl;
+  for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
+    auto & network = *(iter->network);
+    auto done = network.reorderOutputModes(reorder); assert(done);
+  }
+
+  for (auto iter = ket_ansatz_->begin(); iter != ket_ansatz_->end(); ++iter){
+    auto & network = *(iter->network);
+    network.printIt();
+  }
+
+  ket_ansatz_->printIt();
+
 }
 
 
 void ParticleAnsatz::constructEnergyFunctional(){
   
-  // components of Lagrangian Functional
-  bra_ansatz_ = std::make_shared<exatn::TensorExpansion>(*ket_ansatz_);
-  bra_ansatz_->conjugate();
-  bra_ansatz_->rename("BraAnsatz");
-  // H expectation
-  exatn::TensorExpansion tmp(*bra_ansatz_,*ket_ansatz_,*hamiltonian_operator_);
-  expectation_expansion_ = std::make_shared<exatn::TensorExpansion>(tmp);
-  expectation_expansion_->rename("ExpectationExpansion");
-  //expectation_expansion_->printIt();
-  // constraint expectation
-  exatn::TensorExpansion tmp2(*bra_ansatz_,*ket_ansatz_, *constraint_operator_);
-  constraint_expansion_ = std::make_shared<exatn::TensorExpansion>(tmp2);
-  constraint_expansion_->rename("ConstraintExpansion");
-  //constraint_expansion_->printIt();
-  // augmentation expansion
-  
-  exatn::TensorExpansion tmp3(tmp2,tmp2);
-  augmentation_expansion_ = std::make_shared<exatn::TensorExpansion>(tmp3);
-  augmentation_expansion_->rename("AugmentationExpansion");
-  //augmentation_expansion_->printIt();
-}
-
-void ParticleAnsatz::constructEnergyDerivatives(){
-  std::cout << "Hello2" << std::endl; 
-  const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
-  std::unordered_set<std::string> tensor_names;
-  for (auto network = ket_ansatz_->cbegin(); network != ket_ansatz_->cend(); ++network){
-    for ( auto tensor_conn = network->network->begin(); tensor_conn != network->network->end(); ++tensor_conn){
-      const auto & tensor = tensor_conn->second;
-      if (tensor.isOptimizable()){
-        auto res = tensor_names.emplace(tensor.getName());
-        if (res.second){
-          exatn::TensorExpansion tmp(*expectation_expansion_,tensor.getName(),true);
-          exatn::TensorExpansion tmp2(*constraint_expansion_,tensor.getName(),true);
-          //exatn::TensorExpansion tmp3(*augmentation_expansion_,tensor.getName(),true);
-          //augmented_lagrangian_->printIt();
-         // exatn::TensorExpansion tmp4(*augmented_lagrangian_,tensor.getName(),true);
-          auto gradient_expectation_expansion = std::make_shared<exatn::TensorExpansion>(tmp);
-          auto gradient_constraint_expansion = std::make_shared<exatn::TensorExpansion>(tmp2);
-          //auto gradient_augmentation_expansion = std::make_shared<exatn::TensorExpansion>(tmp3);
-          //auto gradient_augmented_lagrangian = std::make_shared<exatn::TensorExpansion>(tmp4);
-          auto gradient_expectation_tensor = std::make_shared<exatn::Tensor>("GradientExpectationTensor_"+tensor.getName(),tensor.getShape(), tensor.getSignature());
-          auto gradient_constraint_tensor = std::make_shared<exatn::Tensor>("GradientConstraintTensor_"+tensor.getName(),tensor.getShape(), tensor.getSignature());
-          //auto gradient_augmentation_tensor = std::make_shared<exatn::Tensor>("GradientAugmentationTensor_"+tensor.getName(),tensor.getShape(), tensor.getSignature());
-          //auto gradient_augmented_lagrangian_tensor = std::make_shared<exatn::Tensor>("GradientAugmentedLagrangianTensor_"+tensor.getName(),tensor.getShape(), tensor.getSignature());
-          auto created = exatn::createTensor("GradientExpectationTensor_"+tensor.getName(),TENS_ELEM_TYPE,tensor.getShape()); assert(created);
-          created = exatn::createTensor("GradientConstraintTensor_"+tensor.getName(),TENS_ELEM_TYPE,tensor.getShape()); assert(created);
-          //created = exatn::createTensor("GradientAugmentationTensor_"+tensor.getName(),TENS_ELEM_TYPE,tensor.getShape()); assert(created);
-          //auto created = exatn::createTensor("GradientAugmentedlagrangianTensor_"+tensor.getName(),TENS_ELEM_TYPE,tensor.getShape()); assert(created);
-           derivatives_expectation_.push_back(std::make_tuple(tensor.getName(), gradient_expectation_expansion, gradient_expectation_tensor));
-           derivatives_constraint_.push_back(std::make_tuple(tensor.getName(), gradient_constraint_expansion, gradient_constraint_tensor));
-          //derivatives_augmentation_.push_back(std::make_tuple(tensor.getName(), gradient_augmentation_expansion, gradient_augmentation_tensor));
-          //derivatives_augmented_lagrangian_.push_back(std::make_tuple(tensor.getName(), gradient_augmented_lagrangian, gradient_augmented_lagrangian_tensor));
-        }
-      }
-    }
-  }
 }
 
 void ParticleAnsatz::initWavefunctionAnsatz(){
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
   // normalize wavefunction ansatz
-  auto success = exatn::balanceNorm2Sync(*ket_ansatz_,1.0,true); assert(success);
+  //auto success = exatn::balanceNorm2Sync(*ket_ansatz_,1.0,true); assert(success);
 }
 
 
 double ParticleAnsatz::evaluateEnergyFunctional(){
   double energy = 0.0;
-  /*
-  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
-  const auto TENSOR_SHAPE = exatn::TensorShape{};
-  auto created = exatn::createTensorSync("ac_constraint",TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
-  auto ac_constraint = exatn::getTensor("ac_constraint");
-  auto initialized = exatn::initTensor(ac_constraint->getName(), 0.0); assert(initialized);
-  auto evaluated = exatn::evaluateSync(*constraint_expansion_,ac_constraint); assert(evaluated);
-  auto local_copy = exatn::getLocalTensor(ac_constraint->getName()); assert(local_copy);
-  const  exatn::TensorDataType<TENS_ELEM_TYPE>::value * body_ptr;
-  auto access_granted = local_copy->getDataAccessHostConst(&body_ptr); assert(access_granted);
-  double val_constraint = *body_ptr;
-  body_ptr = nullptr;
-  // create accumulator tensor for the closed tensor expansion
-  created = exatn::createTensorSync("ac_expectation",TENS_ELEM_TYPE, TENSOR_SHAPE); assert(created);
-  auto ac_expectation = exatn::getTensor("ac_expectation");
-  initialized = exatn::initTensor(ac_expectation->getName(), 0.0); assert(initialized);
-  evaluated = exatn::evaluateSync(*expectation_expansion_,ac_expectation); assert(evaluated);
-  // get value
-  auto talsh_tensor = exatn::getLocalTensor(ac_expectation->getName());
-  access_granted = local_copy->getDataAccessHostConst(&body_ptr); assert(access_granted);
-  double val_expectation = *body_ptr;
-  std::cout << val_expectation << ", " << val_constraint << std::endl;
- 
-  // store value
-  state_energies_.clear();
-  state_energies_.push_back(val_expectation);
-
-  // destroy accumulator tensor
-  auto destroyed = exatn::destroyTensorSync(ac_expectation->getName()); assert(destroyed);
-  destroyed = exatn::destroyTensorSync(ac_constraint->getName()); assert(destroyed);
-  */
   return energy;
 }
 
 void ParticleAnsatz::evaluateEnergyDerivatives(){
-  const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
-  for (unsigned int i = 0; i < derivatives_expectation_.size(); i++){
-    auto tensor_name = std::get<0>(derivatives_expectation_[i]);
-    auto tensor = exatn::getTensor(tensor_name);
-    const auto tensor_shape = tensor->getShape();
-    const exatn::TensorSignature tensor_signature = tensor->getSignature();
-    unsigned int rank = tensor->getRank();
-    auto ac_gradient_expectation_tensor = exatn::getTensor("GradientExpectationTensor_" + tensor_name);
-    auto ac_gradient_constraint_tensor = exatn::getTensor("GradientConstraintTensor_" + tensor_name);
-    //auto ac_gradient_augmented_lagrangian_tensor = exatn::getTensor("GradientAugmentedLagrangianTensor_" + tensor_name);
-    auto gradient_expectation_expansion = std::get<1>(derivatives_expectation_[i]);
-    auto gradient_constraint_expansion = std::get<1>(derivatives_constraint_[i]);
-    //auto gradient_augmented_lagrangian_expansion = std::get<1>(derivatives_augmented_lagrangian_[i]);
-    auto initialized = exatn::initTensorSync(ac_gradient_expectation_tensor->getName(),0.0); assert(initialized);
-    initialized = exatn::initTensorSync(ac_gradient_constraint_tensor->getName(),0.0); assert(initialized);
-    //auto initialized = exatn::initTensorSync(ac_gradient_augmented_lagrangian_tensor->getName(),0.0); assert(initialized);
-    auto evaluated = exatn::evaluateSync(*gradient_expectation_expansion, ac_gradient_expectation_tensor); assert(evaluated);
-    evaluated = exatn::evaluateSync(*gradient_constraint_expansion, ac_gradient_constraint_tensor); assert(evaluated);
-    //auto evaluated = exatn::evaluateSync(*gradient_augmented_lagrangian_expansion, ac_gradient_augmented_lagrangian_tensor); assert(evaluated);
-    std::cout << " Optimizable tensor name is " << tensor_name  << std::endl;
-    environments_.emplace_back(Environment{exatn::getTensor(tensor_name),
-                 ac_gradient_expectation_tensor,
-                 gradient_expectation_expansion,
-                 ac_gradient_constraint_tensor,
-                 gradient_constraint_expansion
-                 });
-
-    std::cout << "Done evaluating derivative ...." << std::endl;
-  }
 }
 
 void ParticleAnsatz::updateWavefunctionAnsatzTensors(){
-  const auto TENS_ELEM_TYPE = exatn::TensorElementType::REAL64;
-  /*
-  int maxiter = 1;
-  // for every optimizable tensor
-  for (auto & environment: environments_){
-    const std::string tensor_name = environment.tensor->getName();
-    auto tensor = exatn::getTensor(tensor_name);
-    const exatn::TensorShape tensor_shape = environment.tensor->getShape();
-    const exatn::TensorSignature tensor_signature = environment.tensor->getSignature();
-    unsigned int rank = environment.tensor->getRank();
-  
-    const std::string gradient_expectation_name = environment.gradient_expectation->getName();
-    const std::string gradient_constraint_name = environment.gradient_constraint->getName();
-    
-    // query gradient
-    double max_abs_element = 0.0;
-    auto success = exatn::computeMaxAbsSync(gradient_name, max_abs_element); assert(success);
-    std::cout << "Max. absolute value in gradient tensor w.r.t. " << environment.tensor->getName() << " is " << max_abs_element << std::endl;
-    if (max_abs_element < convergence_thresh_) continue;
-    
-    // microiterations
-    for ( int microiteration = 0; microiteration < maxiter; microiteration++){
-      // update tensor factor
-      auto ac_gradient_tensor = exatn::getTensor("GradientTensor_" + tensor_name);
-      auto gradient_expansion = environment.gradient_expansion;
-      //auto initialized = exatn::initTensorSync(ac_gradient_tensor->getName(),0.0); assert(initialized);
-      //auto evaluated = exatn::evaluateSync(gradient_expansion, ac_gradient_tensor); assert(evaluated);
-      auto grad = std::make_shared<exatn::Tensor>("Grad_"+tensor_name, tensor_shape, tensor_signature);
-      auto created = exatn::createTensorSync(grad,tensor->getElementType()); assert(created);
-      auto initialized = exatn::initTensorSync(grad->getName(),0.0); assert(initialized);
-      std::string add_pattern;
-      auto generated = exatn::generate_addition_pattern(rank,add_pattern,true,grad->getName(), ac_gradient_tensor->getName()); assert(generated);
-      auto factor = 1.0; 
-      auto added = exatn::addTensors(add_pattern, factor); assert(added);
-      add_pattern.clear();
-      
-      auto success = exatn::computeMaxAbsSync(grad->getName(), max_abs_element); assert(success);
-      std::cout << "Max. absolute value in gradient tensor: " << max_abs_element << std::endl;
-      auto destroyed = exatn::destroyTensorSync(grad->getName()); assert(destroyed);
-      if (max_abs_element < convergence_thresh_) continue;
-      auto prior_tensor = std::make_shared<exatn::Tensor>("PriorTensor_"+tensor_name,tensor_shape,tensor_signature);
-      created = exatn::createTensorSync(prior_tensor,tensor->getElementType()); assert(created);
-      //std::string add_pattern;
-      initialized = exatn::initTensor(prior_tensor->getName(), 0.0); assert(initialized);
-      generated = exatn::generate_addition_pattern(rank,add_pattern,true,prior_tensor->getName(), tensor_name); assert(generated);
-      std::cout << add_pattern << std::endl;
-      added = exatn::addTensors(add_pattern,1.0); assert(added);
-      add_pattern.clear();
-    
-      initialized = exatn::initTensor(tensor_name, 0.0); assert(initialized);
-      generated = exatn::generate_addition_pattern(rank,add_pattern,true,tensor_name, prior_tensor->getName()); assert(generated);
-      std::cout << add_pattern << std::endl;
-      added = exatn::addTensors(add_pattern,1.0); assert(added);
-      add_pattern.clear();
-    
-      generated = exatn::generate_addition_pattern(rank,add_pattern,true,tensor->getName(), gradient_name); assert(generated);
-      std::cout << add_pattern << std::endl;
-      auto lr = 0.5;
-      added = exatn::addTensors(add_pattern, -lr); assert(added);
-      add_pattern.clear();
-
-      std::cout << " Done updating tensor "  << tensor_name << std::endl;
-      destroyed = exatn::destroyTensorSync(prior_tensor->getName()); assert(destroyed);
-    }
-  } 
-  environments_.clear();
-  */
 }
 
 
