@@ -17,9 +17,12 @@ and the location of your exatn install (EXATN\_DIR) in the
 Makefile provided. 
 
 Then: make  
-This compiles the CAS-TN source code and 
-generates an object file (src/particle\_ansatz.o)
+This compiles the CAS-TN source code,
+creating an object file (src/particle\_ansatz.o).
 
-This also generates executables in tests/ that can be run as 
-tests for this library.
+This also compiles source code in /tests, then:
+
+Links the object files to the ExaTN library, generating 
+executables that can be run on any appropriate 
+computing plaform.
 
