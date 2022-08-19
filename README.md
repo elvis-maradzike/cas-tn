@@ -18,12 +18,8 @@ Makefile provided.
 
 Then: make  
 This compiles the CAS-TN source code and 
-generates an object files (simulation.o)
+generates an object file (src/particle\_ansatz.o)
 
-This also generates executables that constitute tests for 
-this library.
-
-The tests may be run as follows:  
-  cd tests/h4  
-  ./h4.x > h4.out & 
+This also generates executables in tests/ that can be run as 
+tests for this library.
 
