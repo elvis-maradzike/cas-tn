@@ -1,6 +1,7 @@
 #ifdef MPI_ENABLED
 #include "mpi.h"
 #endif
+
 #include "exatn.hpp"
 #include "quantum.hpp"
 #include "talshxx.hpp"
@@ -11,7 +12,7 @@ using namespace std::chrono;
 int main(int argc, char** argv){
 
   exatn::ParamConf exatn_parameters;
-  exatn_parameters.setParameter("host_memory_buffer_size",48L*1024L*1024L*1024L);
+  exatn_parameters.setParameter("host_memory_buffer_size",8L*1024L*1024L*1024L);
 
 #ifdef MPI_ENABLED
   int thread_provided;
@@ -22,7 +23,6 @@ int main(int argc, char** argv){
 #else
   exatn::initialize(exatn_parameters, "lazy-dag-executor");
 #endif
-
 
   {
   const auto TENS_ELEM_TYPE = exatn::TensorElementType::COMPLEX64;
@@ -63,7 +63,6 @@ int main(int argc, char** argv){
   auto ansatz = exatn::makeSharedTensorExpansion();
   ansatz->appendComponent(input_net,{1.0,0.0});
   ansatz->rename("KetAnsatz");
-
   
   // read in Hamiltonian
   auto hamiltonian = exatn::quantum::readSpinHamiltonian("MyHamiltonian","hamiltonian.txt",TENS_ELEM_TYPE, "OpenFermion");
@@ -78,7 +77,6 @@ int main(int argc, char** argv){
   success = exatn::sync(); assert(success);
   bool converged = optimizer.optimize(1);
   success = exatn::sync(); assert(success);
-
   }
 
   exatn::finalize();

@@ -1,11 +1,15 @@
 /** Complete-Active-Space Tensor-Network (CAS-TN) Simulation: Main header
-REVISION: 2021/12/22
+REVISION: 2022/08/19
 
-Copyright (C) 2020-2021 Dmitry I. Lyakh (Liakh)
-Copyright (C) 2020-2021 Oak Ridge National Laboratory (UT-Battelle)
+Copyright (C) 2020-2022 Dmitry I. Lyakh (Liakh, Elvis Maradzike
+Copyright (C) 2020-2022 Oak Ridge National Laboratory (UT-Battelle)
 
 Rationale:
- <Describe what functionality is provided by this header>
+ Declares a class ParticleAnsatz and member functions that 
+ antisymmetrize a wavefunction expressed as a tensor network
+ (expansion) in the particle number basis, and sets up 
+ the optimization of such based on the minimization of the 
+ Rayleigh functional <x|H|x>/<x|x>.
 **/
 
 #include "exatn.hpp"
@@ -68,25 +72,6 @@ protected:
  /** Appends two layers of ordering projectors to the wavefunction ansatz. **/
  void appendOrderingProjectors();
 
- /** Constructs the energy trace optimization functional. **/
- void constructEnergyFunctional();
-
- /** Constructs derivatives of the energy functional. **/
- void constructEnergyDerivatives();
-
- /** Creates the initial guess for the wavefunction ansatz
-     (initializes all tensors in the wavefunction ansatz). **/
- void initWavefunctionAnsatz();
-
- /** Evaluates the current value of the energy functional. **/
- double evaluateEnergyFunctional();
-
- /** Evaluates derivates of the energy functional with respect to all optimized tensors. **/
- void evaluateEnergyDerivatives();
-
- /** Updates all tensors being optimized in the wavefunction ansatz. **/
- void updateWavefunctionAnsatzTensors();
-
  //Data members:
  std::size_t num_orbitals_;      //number of active orbitals
  std::size_t num_particles_;     //number of active particles
@@ -98,73 +83,32 @@ protected:
  std::shared_ptr<exatn::TensorExpansion> bra_ansatz_;      //wavefunction ansatz bra
  std::vector<std::shared_ptr<exatn::Tensor>> hamiltonian_; //Hamiltonian tensors
  std::shared_ptr<exatn::TensorOperator> hamiltonian_operator_; // hamiltonian operator
- std::shared_ptr<exatn::TensorOperator> constraint_operator_; // number constraint operator
 
  std::size_t num_states_;             //number of the lowest-energy states to find
  std::vector<double> state_energies_; //quantum state energies
  double convergence_thresh_;          //tensor convergence threshold (for maxabs)
- std::shared_ptr<exatn::TensorExpansion> expectation_expansion_; //energy trace functional
- std::shared_ptr<exatn::TensorExpansion> constraint_expansion_; // constraint functional
- std::shared_ptr<exatn::TensorExpansion> augmentation_expansion_; // augmentation functional
- std::shared_ptr<exatn::TensorExpansion> augmented_lagrangian_; // augmentation functional
- std::shared_ptr<exatn::TensorExpansion> residual_expansion_; // residual
-
- std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H-S|x>)
-                        std::shared_ptr<exatn::Tensor>           // derivative tensor (<x|H-S|x>)
-                       >> derivatives_;                          // derivatives of the energy functional
- std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|H-S|x>)
-                        std::shared_ptr<exatn::Tensor>           // derivative tensor (<x|H|x>)
-                       >> derivatives_expectation_;              // derivatives of the energy functional
- std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|a*a - N|x>)
-                        std::shared_ptr<exatn::Tensor>           // derivative tensor (<x|a*a-N|x>)
-                       >> derivatives_constraint_;               // derivatives of the number constraint functional
- std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|a*a-N|x><x|a*a-N|x>)
-                        std::shared_ptr<exatn::Tensor>           // derivative tensor (<x|a*a-N|x><x|a*a-N|x>)
-                       >> derivatives_augmentation_;             // derivatives of the augmentation functional
- std::vector<std::tuple<std::string,                             // tensor name
-                        std::shared_ptr<exatn::TensorExpansion>, // derivative tensor expansion (<x|a*a-N|x><x|a*a-N|x>)
-                        std::shared_ptr<exatn::Tensor>           // derivative tensor (<x|a*a-N|x><x|a*a-N|x>)
-                       >> derivatives_augmented_lagrangian_;             // derivatives of the augmentation functional
-
- struct Environment{
- std::shared_ptr<exatn::Tensor> tensor;                // tensor being optimized
- std::shared_ptr<exatn::Tensor> gradient_expectation_tensor;              // derivative of expectation
- std::shared_ptr<exatn::TensorExpansion> gradient_expansion; // derivative expression
- std::shared_ptr<exatn::Tensor> gradient_constraint_tensor;              // derivative of expectation
- std::shared_ptr<exatn::TensorExpansion> gradient_constraint_expectation; // derivative expression
- };
-
- std::vector<Environment> environments_;
 
  class FunctorInitDelta: public talsh::TensorFunctor<Identifiable>{
 public:
 
- FunctorInitDelta() = default;
+  FunctorInitDelta() = default;
+  virtual ~FunctorInitDelta() = default;
+  virtual const std::string name() const override
+  {
+    return "TensorFunctorInitDelta";
+  }
 
- virtual ~FunctorInitDelta() = default;
-
- virtual const std::string name() const override
- {
-  return "TensorFunctorInitDelta";
- }
-
- virtual const std::string description() const override
- {
-  return "Initializes tensor with Kronecker delta";
- }
- /** Packs data members into a byte packet. **/
- virtual void pack(BytePacket & packet) override;
-
- /** Unpacks data members from a byte packet. **/
- virtual void unpack(BytePacket & packet) override;
-
-
- /** Description **/
- virtual int apply(talsh::Tensor & local_tensor) override;
+  virtual const std::string description() const override
+  {
+    return "Initializes tensor with Kronecker delta";
+  }
+ 
+  /** Packs data members into a byte packet. **/
+  virtual void pack(BytePacket & packet) override;
+  /** Unpacks data members from a byte packet. **/
+  virtual void unpack(BytePacket & packet) override;
+  /** Description **/
+  virtual int apply(talsh::Tensor & local_tensor) override;
 
 private:
 
@@ -172,61 +116,48 @@ private:
 
  class FunctorInitOrdering: public talsh::TensorFunctor<Identifiable>{
 public:
+  FunctorInitOrdering() = default;
+  virtual ~FunctorInitOrdering() = default;
+  virtual const std::string name() const override
+  {
+    return "TensorFunctorInitOrdering";
+  }
 
- FunctorInitOrdering() = default;
-
- virtual ~FunctorInitOrdering() = default;
-
- virtual const std::string name() const override
- {
-  return "TensorFunctorInitOrdering";
- }
-
- virtual const std::string description() const override
- {
-  return "Initializes tensor: 1.0 if  m < n, 0.0 otherwise";
- }
- /** Packs data members into a byte packet. **/
- virtual void pack(BytePacket & packet) override;
-
- /** Unpacks data members from a byte packet. **/
- virtual void unpack(BytePacket & packet) override;
-
-
- /** Description **/
- virtual int apply(talsh::Tensor & local_tensor) override;
+  virtual const std::string description() const override
+  {
+    return "Initializes tensor: 1.0 if  m < n, 0.0 otherwise";
+  }
+  /** Packs data members into a byte packet. **/
+  virtual void pack(BytePacket & packet) override;
+  /** Unpacks data members from a byte packet. **/
+  virtual void unpack(BytePacket & packet) override;
+  /** Description **/
+  virtual int apply(talsh::Tensor & local_tensor) override;
 
 private:
 
 };
 
-
 };
 
 class  SpinSiteAnsatz: public ParticleAnsatz {
   
-  public:
-    SpinSiteAnsatz(std::size_t total_orbitals, std::size_t total_particles): ParticleAnsatz(num_orbitals_, num_particles_, 
+public:
+  SpinSiteAnsatz(std::size_t total_orbitals, std::size_t total_particles): ParticleAnsatz(num_orbitals_, num_particles_, 
                                num_core_orbitals_, total_orbitals_, total_particles_){}
 
- /** Resets Hamiltonian operator. **/
- void resetHamiltonianOperator(std::shared_ptr<exatn::TensorOperator> hamiltonian);
+  /** Resets Hamiltonian operator. **/
+  void resetHamiltonianOperator(std::shared_ptr<exatn::TensorOperator> hamiltonian);
 
- /** Resets Constraint operator. **/
- void resetConstraintOperator(std::shared_ptr<exatn::TensorOperator> constraint);
- 
- /** Optimizes the wavefunction ansatz to minimize the energy trace.
-     Returns TRUE upon convergence, FALSE otherwise. **/
- bool optimize(std::size_t num_states = 1,                              //in: number of the lowest quantum states to optimize the energy for
+  /** Optimizes the wavefunction ansatz to minimize the energy trace **/
+  bool optimize(std::size_t num_states = 1,                              //in: number of the lowest quantum states to optimize the energy for
                double convergence_thresh = DEFAULT_CONVERGENCE_THRESH); //in: tensor convergence threshold (for maxabs)
 
-  protected:
+protected:
 
+private:
 
-  private:
- 
 };
-
 
 } //namespace castn
 
