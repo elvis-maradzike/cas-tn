@@ -10,6 +10,7 @@ Copyright (C) 2020-2022 Oak Ridge National Laboratory (UT-Battelle)
 #include "exatn.hpp"
 #include "talshxx.hpp"
 #include <unordered_set>
+#include "quantum.hpp"
 
 namespace castn {
 
@@ -199,6 +200,14 @@ int ParticleAnsatz::FunctorInitOrdering::apply(talsh::Tensor & local_tensor) //t
 
 
 bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh){
+ //#ifdef CUQUANTUM
+  auto success = exatn::sync(); assert(success);
+  auto backends = exatn::queryComputationalBackends();
+ //if(std::find(backends.cbegin(),backends.cend(),"default") != backends.cend())
+ //exatn::switchComputationalBackend("default");
+ //#endif
+  exatn::resetContrSeqOptimizer("cutnn", false, true);
+
   bool success = false;
   auto hamiltonian_operator = exatn::makeSharedTensorOperator("HamiltonianOperator");
   //(anti)symmetrization
@@ -216,7 +225,9 @@ bool ParticleAnsatz::optimize(std::size_t num_states, double convergence_thresh)
   exatn::TensorNetworkOptimizer optimizer(hamiltonian_operator,ket_ansatz_,convergence_thresh_);
   optimizer.enableParallelization(true);
   optimizer.resetLearningRate(0.5);
-  bool converged = optimizer.optimize();
+  bool multistate = false;
+  if (num_states > 1) multistate = true;
+  bool converged = optimizer.optimize(multistate);
   success = exatn::sync(); assert(success);
   success = converged;
   if(exatn::getProcessRank() == 0){
